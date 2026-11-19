@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Privacy{% endblock %}
+{% block content %}
+<article class="narrow-wide sheet margined prose legal">
+  <h1>Privacy</h1>
+  <p class="muted">What nitsdate stores, who can see it, and how to get it removed. Updated 20 November 2026.</p>
+
+  <h2>What is stored</h2>
+  <ul>
+    <li><b>From Google, when you sign in:</b> your name, email address, Google account ID and the basic profile
+      details Google sends with them (such as a link to your Google profile picture). Nothing else is requested:
+      no contacts, no Drive, no permission to post for you. Google sign-in tokens are not kept.</li>
+    <li><b>What you add:</b> profile answers, date of birth, gender, photos, posts, comments, votes, messages and
+      chat photos, connections, blocks and reports.</li>
+    <li><b>Technical:</b> a sign-in cookie and a security (CSRF) cookie. Your light/dark choice stays in your own
+      browser. The server's access logs record IP addresses and the pages requested; they are deleted after 14 days.</li>
+  </ul>
+  <p>No ads, no analytics or tracking scripts, and nothing is sold or shared with advertisers.
+    The site's fonts load from Google Fonts, so Google sees your IP address when a page loads.</p>
+
+  <h2>Who can see what</h2>
+  <ul>
+    <li>You choose for each answer and each photo: <b>only me</b>, <b>connections</b>, or <b>everyone signed in</b>.</li>
+    <li>You can show a random name instead of your real one, and lock your profile so strangers see only your name.</li>
+    <li>In matchmaking you both get blind nicknames until you connect.</li>
+    <li>Apart from this page, the terms and the sign-in page, everything needs a sign-in, and search engines are
+      told not to index the site.</li>
+    <li><b>Moderators</b> (one or two people chosen by the admins) can see an account's email address, every
+      profile answer and photo whatever its privacy setting, and its posts and comments. When a message or chat is
+      reported they can read up to 100 messages before the report, but nothing after it. Every moderator action is
+      logged. Whoever you report is never told who reported them.</li>
+  </ul>
+
+  <h2>Photos</h2>
+  <p>Photos are re-encoded on upload, which removes location (GPS) and camera data. They are kept in a private
+    Cloudflare R2 storage bucket in the EU and only shown through the site, after checking that the viewer is
+    allowed to see them.</p>
+
+  <h2>Where it lives</h2>
+  <p>The site and its database run on a server in Frankfurt, Germany. Database backups are kept for 14 days.</p>
+
+  <h2>Under 18</h2>
+  <p>You must be at least 16. Members aged 16 or 17 are only matched with each other. Your date of birth is
+    required for this, and only a moderator can correct it.</p>
+
+  <h2>Deleting things</h2>
+  <p>You can delete your posts, comments and photos at any time.
+    {% if contact_email %}To delete your whole account and everything in it, email
+    <a href="mailto:{{ contact_email }}">{{ contact_email }}</a> from the address you sign in with.
+    It is removed from the site, and drops out of backups within 14 days.{% endif %}</p>
+
+  <p class="muted"><a href="{% url 'terms' %}">Terms</a> · <a href="/">Back to nitsdate</a></p>
+</article>
+{% endblock %}

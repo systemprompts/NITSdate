@@ -1,7 +1,9 @@
+from django.conf import settings
 from django.shortcuts import redirect
 from django.urls import reverse
 
-EXEMPT_PREFIXES = ("/onboarding/", "/logout/", "/login/", "/dev-login/", "/accounts/", "/static/", "/admin/")
+EXEMPT_PREFIXES = ("/onboarding/", "/logout/", "/login/", "/dev-login/", "/accounts/", "/static/",
+                   "/privacy/", "/terms/", "/healthz", "/robots.txt", "/" + settings.ADMIN_URL)
 
 
 class OnboardingMiddleware:

@@ -656,3 +656,13 @@ class AgeGroupTests(TestCase):
                          {"photos": [SimpleUploadedFile("g.png", png_bytes(), content_type="image/png")], "privacy": "public"})
         from accounts.models import GalleryPhoto
         self.assertEqual(GalleryPhoto.objects.filter(user=self.teen_f).count(), 1)
+
+
+class LegalPagesTests(TestCase):
+    def test_readable_signed_out_and_before_onboarding(self):
+        for url in ("/privacy/", "/terms/"):
+            self.assertEqual(self.client.get(url).status_code, 200)
+        self.client.force_login(User.objects.create(username="new", email="new@gmail.com"))  # no profile yet
+        for url in ("/privacy/", "/terms/"):
+            self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertRedirects(self.client.get("/"), reverse("onboarding"))

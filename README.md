@@ -85,4 +85,5 @@ permission-checking views, never from public bucket URLs.
 ### Privacy defaults
 Search engines are told not to index anything (`robots.txt`, `X-Robots-Tag`, meta tags), the Django admin
 lives at a custom `ADMIN_URL`, password/email account pages are disabled (sign-in is Google-only), and
-uploaded photos have their EXIF/GPS data stripped.
+uploaded photos have their EXIF/GPS data stripped. `/privacy/` and `/terms/` describe all of this for members;
+set `CONTACT_EMAIL` so they know where to send deletion requests.

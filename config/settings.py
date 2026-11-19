@@ -205,6 +205,8 @@ SOCIALACCOUNT_PROVIDERS = {
 
 # Empty = every Google account may sign in. "nits.ac.in" = only *@nits.ac.in
 # and *@<dept>.nits.ac.in.
+# shown on /privacy/ and /terms/ for account-deletion requests (leave empty to hide)
+CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "").strip()
 ALLOWED_EMAIL_DOMAIN = os.environ.get("ALLOWED_EMAIL_DOMAIN", "").strip().lower().lstrip("@.")
 
 # Password-less test login for trying the site with many users locally.

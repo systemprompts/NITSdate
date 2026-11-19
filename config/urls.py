@@ -4,7 +4,7 @@ from django.db import connection
 from django.http import Http404, HttpResponse
 from django.urls import include, path, re_path
 from django.views.decorators.cache import never_cache
-from django.views.generic import RedirectView
+from django.views.generic import RedirectView, TemplateView
 
 
 def robots_txt(request):
@@ -25,6 +25,10 @@ def not_found(request, *args, **kwargs):
 urlpatterns = [
     path("robots.txt", robots_txt),
     path("healthz", healthz),
+    path("privacy/", TemplateView.as_view(template_name="legal/privacy.html",
+                                          extra_context={"contact_email": settings.CONTACT_EMAIL}), name="privacy"),
+    path("terms/", TemplateView.as_view(template_name="legal/terms.html",
+                                        extra_context={"contact_email": settings.CONTACT_EMAIL}), name="terms"),
     path(settings.ADMIN_URL, admin.site.urls),
     # Sign-in is Google-only: close allauth's password / email / code pages entirely.
     re_path(r"^accounts/(password|email|confirm-email|reauthenticate|login/code|2fa)(/.*)?$", not_found),

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Terms{% endblock %}
+{% block content %}
+<article class="narrow-wide sheet margined prose legal">
+  <h1>Terms</h1>
+  <p class="muted">The short version: be kind, be honest, and respect people's privacy. Updated 20 November 2026.</p>
+
+  <ul>
+    <li>nitsdate is for the NIT Silchar community. You must be at least 16, have one account, and give your real
+      date of birth.</li>
+    <li>Don't harass, threaten, stalk or pressure anyone, and no hate speech.</li>
+    <li>Don't share other people's photos, screenshots of private chats, or anything someone told you privately
+      without their consent. Don't try to find out who is behind a blind match or a hidden name.</li>
+    <li>No nudity or sexual content. Anything sexual involving someone under 18 gets the account closed at once.</li>
+    <li>No impersonation, spam, scams or selling.</li>
+    <li>Moderators can remove content and limit or close accounts that break these rules. If something is wrong,
+      use <b>Report</b>; whoever you report is never told who reported them.</li>
+    <li>The site is run by students and provided as it is, without guarantees. It may change or shut down, and
+      these terms may be updated; using the site means you accept the current version.</li>
+  </ul>
+  {% if contact_email %}<p>Questions: <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>{% endif %}
+
+  <p class="muted"><a href="{% url 'privacy' %}">Privacy</a> · <a href="/">Back to nitsdate</a></p>
+</article>
+{% endblock %}
