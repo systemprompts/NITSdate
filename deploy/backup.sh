@@ -2,6 +2,7 @@
 # Nightly database backup, keeps 14 days. Cron (crontab -e):
 #   30 3 * * * /home/ubuntu/nitsdate/deploy/backup.sh >> /home/ubuntu/nitsdate-backups/backup.log 2>&1
 set -euo pipefail
+umask 077   # backups hold every member's data: owner-only
 DIR="$HOME/nitsdate-backups"
 mkdir -p "$DIR"
 cd "$(dirname "$0")/.."
