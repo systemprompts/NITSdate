@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ name }}{% endblock %}
+{% block content %}
+<div class="narrow-wide">
+  {% if preview %}
+  <div class="preview-bar">
+    {% icon 'eye' 16 %}<span>This is how {% if preview == "connection" %}a <b>connection</b>{% else %}a <b>stranger</b>{% endif %} sees your page.</span>
+    <a href="{% url 'my_profile' %}">Back to editing</a>
+  </div>
+  {% endif %}
+
+  <section class="profile-head">
+    {% if show_photo %}
+      <span class="avatar avatar-xl"><img src="{% url 'profile_photo' owner.pk %}?v={{ profile.photo|version }}" alt=""></span>
+    {% else %}
+      <span class="avatar avatar-xl" style="--h:{% hue owner.pk %}">{{ name|slice:":1"|upper }}</span>
+    {% endif %}
+    <div class="grow">
+      <h1>{{ name }}&nbsp;{% gender_mark gender %} {% hidden_mark name_hidden %}</h1>
+      <div class="row-gap">
+        {% if rel == "connection" %}<span class="pill pill-inbox">{% icon 'users' 13 %} Connected</span>{% endif %}
+        {% if conversation.tier == "priority" %}<span class="pill pill-priority">{% icon 'star' 13 %} Priority</span>{% endif %}
+        {% if locked %}<span class="pill">{% icon 'lock' 13 %} Locked profile</span>{% endif %}
+        {% if my_block.messages %}<span class="pill pill-priority">{% icon 'slash' 13 %} Messages blocked</span>{% endif %}
+        {% if my_block.profile %}<span class="pill pill-priority">{% icon 'slash' 13 %} Profile hidden from them</span>{% endif %}
+      </div>
+    </div>
+    <div class="profile-actions">
+      {% if state == "connected" %}
+        {% if conversation %}<a class="btn btn-primary" href="{% url 'chat_room' conversation.pk %}">{% icon 'chat' 16 %} Message</a>{% endif %}
+      {% elif state == "outgoing" %}
+        <span class="muted">{% icon 'clock' 15 %} Request sent</span>
+        <form method="post" action="{% url 'request_action' pending.pk 'cancel' %}">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+          <button class="btn btn-sm btn-ghost">Cancel request</button>
+        </form>
+      {% elif state == "incoming" %}
+        <form method="post" action="{% url 'request_action' pending.pk 'accept' %}">{% csrf_token %}<button class="btn btn-primary">{% icon 'check' 16 %} Accept request</button></form>
+        <form method="post" action="{% url 'request_action' pending.pk 'decline' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><button class="btn btn-sm btn-ghost">Decline</button></form>
+      {% elif not preview and not same_group %}
+        <small class="muted group-note">Connections are only within the same age group.</small>
+      {% elif not preview and my_block %}
+        <small class="muted">Unblock them to send a connection request.</small>
+      {% elif not preview %}
+        <form method="post" action="{% url 'send_request' owner.pk %}">
+          {% csrf_token %}
+          <button class="btn btn-primary" {% if not requests_left %}disabled{% endif %}>{% icon 'user-plus' 16 %} Connect</button>
+        </form>
+        <small class="muted">{{ requests_left }} of {{ per_day }} requests left today</small>
+      {% endif %}
+      {% if not preview %}{% include "accounts/_block_menu.html" with target=owner block=my_block next=request.path label="Block" %}{% endif %}
+    </div>
+  </section>
+
+  {% if locked %}
+  <p class="notice">{% icon 'lock' 16 %}<span>This profile is locked, so only their connections can read the answers. The {% icon 'info' 13 %} buttons still show how often each answer was changed.</span></p>
+  {% endif %}
+
+  {% include "accounts/_gallery.html" %}
+
+  <div class="sheet margined slam">
+    {% for row in rows %}
+    <div class="field-row">
+      <div class="field-margin">{% include "accounts/_info.html" %}</div>
+      <div class="field-main">
+        <div class="field-label">{{ row.field.label }}</div>
+        <div class="field-value">{% include "accounts/_value.html" %}</div>
+      </div>
+      <div></div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if posts %}
+  <section>
+    <h2>Recent posts</h2>
+    <ul class="plain-list">
+      {% for p in posts %}
+        <li><a href="{% url 'post_detail' p.pk %}">{{ p.title }}</a> <small class="muted">{{ p.score }} point{{ p.score|pluralize }}, {{ p.created_at|naturaltime }}</small></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

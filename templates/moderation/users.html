@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+{% include "moderation/_nav.html" with section="users" %}
+<form method="get" class="search-row">
+  <input name="q" value="{{ q }}" placeholder="Search by name, email or randomized name" aria-label="Search users">
+  <button class="btn">{% icon 'search' 16 %} Search</button>
+</form>
+<section class="sheet list-card">
+  {% for u in page %}
+    <a class="list-row" href="{% url 'mod_user' u.pk %}">
+      {% if u.has_profile and u.profile.photo %}<span class="avatar avatar-md"><img src="{% url 'mod_profile_photo' u.pk %}" alt="" loading="lazy"></span>{% else %}<span class="avatar avatar-md" style="--h:{% hue u.pk %}">{{ u.email|slice:":1"|upper }}</span>{% endif %}
+      <div class="grow">
+        <b>{% if u.has_profile %}{{ u.profile.name }}{% else %}{{ u.get_full_name|default:u.username }}{% endif %}</b>
+        <small class="muted">{{ u.email }}, shown as {{ u.alias }}</small>
+      </div>
+      {% if u.has_profile and u.profile.is_minor %}<span class="pill pill-message">Under 18</span>{% endif %}
+      {% if u.open_reports %}<span class="pill pill-priority">{{ u.open_reports }} open report{{ u.open_reports|pluralize }}</span>{% endif %}
+      {% if u.restriction.is_active %}<span class="pill">{% icon 'shield' 12 %} limited</span>{% endif %}
+    </a>
+  {% empty %}
+    <p class="empty-state">No users match “{{ q }}”.</p>
+  {% endfor %}
+</section>
+{% if page.has_other_pages %}
+<nav class="pager">
+  {% if page.has_previous %}<a class="btn btn-ghost" href="{% qs page=page.previous_page_number %}">Previous</a>{% endif %}
+  <span class="muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-ghost" href="{% qs page=page.next_page_number %}">Next</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

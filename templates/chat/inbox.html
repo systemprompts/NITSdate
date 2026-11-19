@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Messages{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Messages</h1></div>
+
+<nav class="tabs tier-tabs">
+  {% for t in tabs %}
+    <a href="?tab={{ t.key }}" class="tab-{{ t.key }} {% if t.key == tab %}active{% endif %}">
+      {% if t.key == "priority" %}{% icon 'star' 15 %}{% elif t.key == "inbox" %}{% icon 'inbox' 15 %}{% else %}{% icon 'zap' 15 %}{% endif %}
+      {{ t.label }}
+      {% if t.unread %}<b class="badge">{{ t.unread }}</b>{% elif t.count %}<span class="count">{{ t.count }}</span>{% endif %}
+    </a>
+  {% endfor %}
+</nav>
+
+<section class="sheet list-card">
+  {% for c in conversations %}
+    <a class="convo-row {% if c.unread %}unread{% endif %} {% if not c.is_active %}ended{% endif %}" href="{% url 'chat_room' c.pk %}">
+      {% if c.tier == "match" %}{% avatar c.other_user user "md" c.title %}{% else %}{% avatar c.other_user user "md" %}{% endif %}
+      <div class="grow">
+        <div class="convo-top">
+          <b class="{% if c.tier == 'match' %}blind{% endif %}">{{ c.title }}{% if c.gender %}&nbsp;{% gender_mark c.gender %}{% endif %} {% hidden_mark c.name_hidden %}</b>
+          <small class="muted">{{ c.last_message_at|naturaltime }}</small>
+        </div>
+        <div class="convo-preview">
+          {% if not c.is_active %}<span class="pill">ended</span>{% endif %}
+          {% if c.msg_blocked %}<span class="pill">{% icon 'slash' 12 %} blocked</span>{% endif %}
+          {% if c.last_sender == user.pk %}You: {% endif %}{% if c.last_text %}{{ c.last_text|truncatechars:70 }}{% elif c.last_image %}📷 Photo{% endif %}
+        </div>
+      </div>
+      {% if c.unread %}<b class="badge">{{ c.unread }}</b>{% endif %}
+    </a>
+  {% empty %}
+    <div class="empty-state">
+      {% if tab == "priority" %}
+        <p>No priority chats yet. Once you and a connection have each sent 100 messages, either of you can ask to make the chat Priority.</p>
+      {% elif tab == "inbox" %}
+        <p>No inbox chats yet. Connect with someone from their profile or from a matchmaking chat.</p>
+      {% else %}
+        <p>No matchmaking chats yet.</p>
+        <a class="btn btn-primary" href="{% url 'match' %}">Start matchmaking</a>
+      {% endif %}
+    </div>
+  {% endfor %}
+</section>
+{% if page.has_other_pages %}
+<nav class="pager">
+  {% if page.has_previous %}<a class="btn btn-ghost" href="{% qs page=page.previous_page_number %}">Newer</a>{% endif %}
+  <span class="muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-ghost" href="{% qs page=page.next_page_number %}">Older</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

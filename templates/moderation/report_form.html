@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Report{% endblock %}
+{% block content %}
+<div class="narrow">
+  <div class="page-head">
+    <div>
+      <h1>Report</h1>
+      <p class="muted">Only moderators see reports. The person won't know who reported them.</p>
+    </div>
+  </div>
+  <form method="post" class="sheet stack">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <div>
+      <small class="muted">{{ label }}</small>
+      <blockquote class="report-quote">{{ snippet|linebreaksbr|default:"(no text)" }}</blockquote>
+    </div>
+    {% if already %}<p class="form-alert">{% icon 'info' 16 %}<span>You've already reported this. A moderator will look at it.</span></p>{% endif %}
+    {% if error %}<p class="form-alert" role="alert">{% icon 'info' 16 %}<span>{{ error }}</span></p>{% endif %}
+    <fieldset class="field">
+      <legend>What's wrong?</legend>
+      <div class="reason-list">
+        {% for value, label in reasons %}
+          <label class="check"><input type="radio" name="reason" value="{{ value }}" required><span>{{ label }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <label class="field">
+      <span>Anything the moderators should know? <small class="muted">(optional)</small></span>
+      <textarea name="details" rows="3" maxlength="2000"></textarea>
+    </label>
+    <div class="row-gap">
+      <button class="btn btn-primary">{% icon 'flag' 15 %} Send report</button>
+      <a class="btn btn-ghost" href="{{ next }}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

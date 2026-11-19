@@ -1,0 +1,50 @@
+<div class="comment" id="c{{ c.pk }}">
+  <button class="thread-line" data-collapse aria-label="Collapse thread"></button>
+  <div class="comment-inner">
+    <div class="comment-head">
+      {% if c.is_deleted %}
+        <span class="muted">[deleted]</span>
+      {% else %}
+        <a href="{% url 'profile' c.author_id %}" class="author">{% avatar c.author user "xs" %}<span>{{ c.author|name_html:user }}</span></a>
+        {% if c.author_id == post.author_id %}<span class="op">OP</span>{% endif %}
+      {% endif %}
+      <time class="muted" datetime="{{ c.created_at|date:'c' }}">{{ c.created_at|naturaltime }}</time>
+      <button class="link collapsed-note" data-collapse>[+] {{ c.n_replies }} repl{{ c.n_replies|pluralize:"y,ies" }}</button>
+    </div>
+    <div class="comment-body">
+      {% if c.removed %}<em class="muted">This comment was removed by a moderator.</em>{% elif c.is_deleted %}<em class="muted">This comment was deleted.</em>{% else %}{{ c.body|urlize|linebreaksbr }}{% endif %}
+    </div>
+    <div class="comment-actions">
+      {% if not c.is_deleted %}
+        {% url 'vote_comment' c.pk as vote_url %}
+        {% include "feed/_vote.html" with action=vote_url score=c.score mine=c.my_vote cls="vote-row" anchor="" %}
+      {% endif %}
+      {% if not limits.no_interaction %}<button class="link" data-reply-toggle>{% icon 'reply' 15 %} Reply</button>{% endif %}
+      {% if c.author_id != user.pk and not c.is_deleted %}<a class="link" href="{% url 'report_comment' c.pk %}?next={{ request.path|urlencode }}%23c{{ c.pk }}">{% icon 'flag' 14 %} Report</a>{% endif %}
+      {% if c.author_id == user.pk and not c.is_deleted %}
+        <form method="post" action="{% url 'delete_comment' c.pk %}" data-confirm="Delete this comment?">
+          {% csrf_token %}<button class="link danger">Delete</button>
+        </form>
+      {% endif %}
+    </div>
+    <form method="post" action="{% url 'add_comment' post.pk %}" class="reply-form" hidden>
+      {% csrf_token %}
+      <input type="hidden" name="parent" value="{{ c.pk }}">
+      <textarea name="body" rows="2" maxlength="5000" placeholder="Write a reply" aria-label="Reply" required></textarea>
+      <div class="row-gap">
+        <button class="btn btn-sm btn-primary">Reply</button>
+        <button type="button" class="btn btn-sm btn-ghost" data-reply-toggle>Cancel</button>
+      </div>
+    </form>
+    {% if c.children %}
+      <div class="children">
+        {% for child in c.children %}{% include "feed/_comment.html" with c=child %}{% endfor %}
+      </div>
+    {% endif %}
+    {% if c.hidden_replies > 0 %}
+      <a class="link more-replies" href="{% url 'post_detail' post.pk %}?thread={{ c.pk }}#c{{ c.pk }}">
+        {% if c.at_depth_limit %}Continue this thread ({{ c.hidden_replies }} repl{{ c.hidden_replies|pluralize:"y,ies" }}){% else %}Show {{ c.hidden_replies }} more repl{{ c.hidden_replies|pluralize:"y,ies" }}{% endif %}
+      </a>
+    {% endif %}
+  </div>
+</div>

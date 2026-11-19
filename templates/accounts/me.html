@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}My profile{% endblock %}
+{% block content %}
+<div class="narrow-wide">
+  <section class="profile-head">
+    <form method="post" action="{% url 'edit_field' 'photo' %}" enctype="multipart/form-data" class="avatar-upload">
+      {% csrf_token %}
+      <label class="avatar-pick" title="{% if profile.photo %}Change{% else %}Add{% endif %} profile photo">
+        {% avatar user user "xl" %}
+        <span class="avatar-badge">{% icon 'camera' 16 %}</span>
+        <input type="file" name="value" id="avatar-input" accept="image/*" class="sr-only" data-autosubmit aria-label="Upload profile photo">
+      </label>
+      <noscript><button class="btn btn-sm">Upload</button></noscript>
+    </form>
+    <div class="grow">
+      <h1>{{ profile.name }}&nbsp;{% gender_mark profile.gender %}</h1>
+      <p class="muted">Where your name is hidden, people see <b class="hand">{{ user.alias }}</b>.</p>
+      <div class="row-gap">
+        <label for="avatar-input" class="btn btn-sm">{% icon 'camera' 15 %} {% if profile.photo %}Change photo{% else %}Add profile photo{% endif %}</label>
+        <a class="btn btn-sm" href="{% url 'profile' user.pk %}?as=public">{% icon 'eye' 15 %} View as a stranger</a>
+        <a class="btn btn-sm" href="{% url 'profile' user.pk %}?as=connection">{% icon 'users' 15 %} View as a connection</a>
+      </div>
+    </div>
+  </section>
+
+  {% if profile.is_minor %}
+  <p class="notice band-note">{% icon 'shield' 16 %}<span>You're in the <b>under-18 group</b>: matchmaking and connection requests are only with other students aged {{ min_age }}–17.
+    On {{ profile.adult_on|date:"j F Y" }} (your 18th birthday) you'll move to the 18+ group automatically. Everything else works the same for everyone.</span></p>
+  {% endif %}
+  <section class="lock-card {% if not profile.profile_visible %}is-locked{% endif %}">
+    <span class="lock-icon">{% if profile.profile_visible %}{% icon 'unlock' 22 %}{% else %}{% icon 'lock' 22 %}{% endif %}</span>
+    <div class="grow">
+      <h3>{% if profile.profile_visible %}Your profile is open{% else %}Your profile is locked{% endif %}</h3>
+      <p>
+        {% if profile.profile_visible %}Anyone can read the answers you've set to Public.
+        {% else %}Only connections can read your answers. Others see your name (or randomized name) and the {% icon 'info' 13 %} edit counts.{% endif %}
+      </p>
+    </div>
+    <form method="post" action="{% url 'set_visibility' %}">
+      {% csrf_token %}
+      <input type="hidden" name="visible" value="{% if profile.profile_visible %}0{% else %}1{% endif %}">
+      <button class="btn btn-sm">{% if profile.profile_visible %}{% icon 'lock' 15 %} Lock profile{% else %}{% icon 'unlock' 15 %} Unlock profile{% endif %}</button>
+    </form>
+  </section>
+
+  {% include "accounts/_gallery_manage.html" %}
+
+  <div class="sheet margined slam">
+    {% include "accounts/_editable_section.html" with title="The basics" rows=basics %}
+    {% include "accounts/_editable_section.html" with title="More about you" rows=about %}
+  </div>
+
+  <p class="muted small center">{{ requests_left }} of {{ per_day }} profile connection requests left today.
+    Requests from matchmaking chats are unlimited.</p>
+</div>
+<datalist id="branch-list">{% for b in branch_suggestions %}<option value="{{ b }}">{% endfor %}</datalist>
+{% endblock %}

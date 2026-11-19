@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+{% include "moderation/_nav.html" with section="reports" %}
+<nav class="tabs subtabs">
+  <a href="?tab=open" class="{% if tab == 'open' %}active{% endif %}">Open <span class="count">{{ open_count }}</span></a>
+  <a href="?tab=closed" class="{% if tab != 'open' %}active{% endif %}">Handled</a>
+</nav>
+<section class="sheet list-card">
+  {% for r in page %}
+    <a class="list-row report-row" href="{% url 'mod_report' r.pk %}">
+      <span class="pill pill-{{ r.kind }}">{{ r.get_kind_display }}</span>
+      <div class="grow">
+        <b>{{ r.get_reason_display }}</b>
+        <span class="muted">about {% if r.reported_user %}{{ r.reported_user.profile.name|default:r.reported_user.email }}{% else %}a deleted account{% endif %}</span>
+        {% if r.involves_minor %}<span class="pill pill-message">Under 18 involved</span>{% endif %}
+        {% if r.user_open_reports > 1 %}<span class="pill pill-priority">{{ r.user_open_reports }} open reports</span>{% endif %}
+        <small class="muted snippet">{{ r.snapshot|truncatechars:110 }}</small>
+      </div>
+      <small class="muted nowrap">{% if r.status != "open" %}{{ r.get_status_display }}, {% endif %}{{ r.created_at|naturaltime }}</small>
+    </a>
+  {% empty %}
+    <p class="empty-state">{% if tab == 'open' %}No open reports. All clear.{% else %}Nothing handled yet.{% endif %}</p>
+  {% endfor %}
+</section>
+{% if page.has_other_pages %}
+<nav class="pager">
+  {% if page.has_previous %}<a class="btn btn-ghost" href="{% qs page=page.previous_page_number %}">Newer</a>{% endif %}
+  <span class="muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn btn-ghost" href="{% qs page=page.next_page_number %}">Older</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,8 @@
+<details class="pop">
+  <summary class="icon-btn sm" title="Edit history" aria-label="Edit history for {{ row.field.label }}">{% icon 'info' 17 %}</summary>
+  <div class="pop-body">
+    <b>Edited {{ row.edits }} time{{ row.edits|pluralize }}</b>
+    {% if row.last_edited %}<span class="muted">Last changed {{ row.last_edited|naturaltime }}</span>{% endif %}
+    <small class="muted">Privacy changes don't count.</small>
+  </div>
+</details>

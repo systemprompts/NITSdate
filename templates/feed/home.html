@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Feed{% endblock %}
+{% block content %}
+<div class="feed-layout">
+  <div class="feed-main">
+    <div class="page-head">
+      <h1>Campus feed</h1>
+      {% if not limits.no_posting %}<a href="{% url 'new_post' %}" class="btn btn-primary">{% icon 'plus' 16 %} Write a post</a>{% endif %}
+    </div>
+    <nav class="tabs" aria-label="Sort posts">
+      {% for key, label in sorts.items %}<a href="?sort={{ key }}" class="{% if key == sort %}active{% endif %}">{{ label }}</a>{% endfor %}
+    </nav>
+
+    <div class="sheet margined feed-sheet">
+      {% for post in page %}
+        {% include "feed/_post.html" %}
+      {% empty %}
+        <div class="empty-state">
+          <p>Nothing here yet. Start the conversation.</p>
+          <a href="{% url 'new_post' %}" class="btn btn-primary">Write a post</a>
+        </div>
+      {% endfor %}
+    </div>
+
+    {% if page.has_other_pages %}
+    <nav class="pager">
+      {% if page.has_previous %}<a class="btn btn-ghost" href="{% qs page=page.previous_page_number %}">Newer</a>{% endif %}
+      <span class="muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}<a class="btn btn-ghost" href="{% qs page=page.next_page_number %}">Older</a>{% endif %}
+    </nav>
+    {% endif %}
+  </div>
+
+  <aside class="feed-side">
+    <div class="side-note">
+      <h3>{% if nav_searching %}Still looking for you{% else %}Try a blind match{% endif %}</h3>
+      <p>Get paired with someone whose filters fit yours. You chat as nicknames, and profiles unlock when you both connect.</p>
+      <a href="{% url 'match' %}" class="btn btn-primary btn-block">{% if nav_searching %}See your search{% else %}Start matchmaking{% endif %}</a>
+    </div>
+    <div class="side-text">
+      <h3>Who sees your name</h3>
+      <p>Posts show your real name only to people your privacy settings allow. Everyone else sees your randomized name.</p>
+    </div>
+  </aside>
+</div>
+{% endblock %}

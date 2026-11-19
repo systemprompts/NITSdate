@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Profile not available{% endblock %}
+{% block content %}
+<div class="narrow empty-state">
+  <h1>This profile isn't available</h1>
+  <p>It may be private, or the link may be wrong.</p>
+  <a class="btn" href="{% url 'home' %}">Back to the feed</a>
+</div>
+{% endblock %}

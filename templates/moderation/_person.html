@@ -1,0 +1,1 @@
+{% if person %}<a href="{% url 'mod_user' person.pk %}" class="mod-person"><b>{{ person.profile.name|default:"(no profile)" }}</b> <span class="muted">{{ person.email }}</span></a>{% else %}<span class="muted">deleted account</span>{% endif %}

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Report #{{ report.pk }}{% endblock %}
+{% block content %}
+{% include "moderation/_nav.html" with section="reports" %}
+<a href="{% url 'mod_reports' %}" class="back-link">{% icon 'back' 16 %} All reports</a>
+
+<section class="sheet">
+  <div class="report-head">
+    <span class="pill pill-{{ report.kind }}">{{ report.get_kind_display }}</span>
+    <h2>{{ report.get_reason_display }}</h2>
+    <span class="pill {% if report.status == 'open' %}pill-priority{% endif %}">{{ report.get_status_display }}</span>
+  </div>
+  <dl class="facts">
+    <dt>Reported user</dt><dd>{% include "moderation/_person.html" with person=report.reported_user %}{% if other_reports %} <span class="pill">{{ other_reports }} other report{{ other_reports|pluralize }}</span>{% endif %}</dd>
+    <dt>Reported by</dt><dd>{% include "moderation/_person.html" with person=report.reporter %}</dd>
+    <dt>When</dt><dd>{{ report.created_at }} ({{ report.created_at|naturaltime }})</dd>
+    {% if report.details %}<dt>Reporter's note</dt><dd>{{ report.details|linebreaksbr }}</dd>{% endif %}
+    <dt>Content now</dt><dd>{% if state == "exists" %}Still up{% if report.kind == "post" and report.post_id %}, <a href="{% url 'post_detail' report.post_id %}">open post</a>{% elif report.kind == "comment" and report.comment_id %}, <a href="{% url 'post_detail' report.comment.post_id %}#c{{ report.comment_id }}">open thread</a>{% endif %}{% elif state == "removed" %}Removed by a moderator{% else %}Deleted{% endif %}</dd>
+    {% if report.status != "open" %}<dt>Handled</dt><dd>{{ report.handled_by.email|default:"—" }}, {{ report.handled_at|naturaltime }}{% if report.resolution_note %}<br>{{ report.resolution_note|linebreaksbr }}{% endif %}</dd>{% endif %}
+  </dl>
+  <h3>What was reported</h3>
+  <blockquote class="report-quote">{{ report.snapshot|linebreaksbr|default:"(no text)" }}</blockquote>
+</section>
+
+{% if report.conversation_id %}
+<section class="sheet">
+  <div class="report-head">
+    <h3>Chat context</h3>
+    <span class="muted small">{{ report.conversation.get_tier_display }} chat. Last</span>
+    <nav class="seg">{% for size in sizes %}<a href="?n={{ size }}" class="{% if size == n %}active{% endif %}">{{ size }}</a>{% endfor %}</nav>
+    <span class="muted small">messages{% if report.message_id %} up to the reported one{% endif %}</span>
+  </div>
+  <div class="mod-chat">
+    {% for m in context_msgs %}
+      <div class="mod-msg {% if m.pk == report.message_id %}is-reported{% endif %}">
+        <span class="who">{% if m.sender %}{{ m.sender.profile.name|default:m.sender.email }}{% else %}system{% endif %}</span>
+        <span class="what">{% if m.removed %}<em class="muted">removed by a moderator</em>{% else %}{{ m.text|linebreaksbr }}{% if m.image %} <a href="{% url 'mod_message_image' m.pk %}" target="_blank">[photo]</a>{% endif %}{% endif %}</span>
+        <time class="muted">{{ m.created_at|date:"M j, H:i" }}</time>
+      </div>
+    {% empty %}
+      <p class="muted">No messages.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="sheet">
+  <h3>Take action</h3>
+  <form method="post" class="stack">
+    {% csrf_token %}
+    <label class="field"><span>Note <small class="muted">(saved with the decision; only moderators see it)</small></span>
+      <textarea name="note" rows="2" maxlength="2000"></textarea></label>
+    <div class="row-gap">
+      {% if report.status == "open" %}
+        {% if state == "exists" and report.kind != "profile" %}<button class="btn btn-gold" name="action" value="remove" data-confirm="Remove this {{ report.get_kind_display|lower }} for everyone?">{% icon 'trash' 15 %} Remove {{ report.get_kind_display|lower }}</button>{% endif %}
+        <button class="btn btn-primary" name="action" value="resolve">{% icon 'check' 15 %} Mark handled</button>
+        <button class="btn" name="action" value="dismiss">Dismiss (no problem)</button>
+      {% else %}
+        <button class="btn" name="action" value="reopen">Reopen</button>
+      {% endif %}
+      {% if report.reported_user %}<a class="btn btn-ghost" href="{% url 'mod_user' report.reported_user_id %}#limits">{% icon 'shield' 15 %} Limit this user</a>{% endif %}
+    </div>
+  </form>
+  {% if actions %}
+  <ul class="plain-list log">{% for a in actions %}<li><span><b>{{ a.action }}</b> by {{ a.mod.email }}{% if a.details %}: {{ a.details }}{% endif %}</span><small class="muted">{{ a.created_at|naturaltime }}</small></li>{% endfor %}</ul>
+  {% endif %}
+</section>
+{% endblock %}

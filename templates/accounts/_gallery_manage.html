@@ -1,0 +1,47 @@
+<section class="gallery-section" id="photos">
+  <div class="gallery-head">
+    <h2>Photos <span class="count">{{ photos|length }} of {{ gallery_max }}</span></h2>
+    {% if photos|length < gallery_max %}
+    <form method="post" action="{% url 'gallery_upload' %}" enctype="multipart/form-data" class="gallery-add">
+      {% csrf_token %}
+      <label class="small muted">New photos visible to
+        <select name="privacy">{% for value, label in privacy_choices %}<option value="{{ value }}" {% if value == "public" %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+      </label>
+      <label class="btn btn-sm btn-primary file-btn">{% icon 'plus' 15 %} Add photos
+        <input type="file" name="photos" accept="image/*" multiple class="sr-only" data-autosubmit>
+      </label>
+      <noscript><button class="btn btn-sm">Upload</button></noscript>
+    </form>
+    {% endif %}
+  </div>
+  {% if photos %}
+  <div class="gallery">
+    {% for ph in photos %}
+    <figure class="snap">
+      <a href="{% url 'gallery_image' user.pk ph.pk %}" data-lightbox><img src="{% url 'gallery_image' user.pk ph.pk %}" alt="Your photo {{ forloop.counter }}" loading="lazy"></a>
+      <figcaption>
+        <details class="pop">
+          <summary class="privacy-chip privacy-{{ ph.privacy }}" title="Who can see this photo">{% privacy_icon ph.privacy 14 %}<span>{{ ph.get_privacy_display }}</span></summary>
+          <form method="post" action="{% url 'gallery_privacy' ph.pk %}" class="pop-body privacy-menu">
+            {% csrf_token %}
+            <small class="muted">Who can see this photo?</small>
+            {% for value, label in privacy_choices %}
+              <button name="privacy" value="{{ value }}" class="{% if value == ph.privacy %}on{% endif %}">{% privacy_icon value 15 %} {{ label }}</button>
+            {% endfor %}
+          </form>
+        </details>
+        <details class="pop pop-right">
+          <summary class="icon-btn sm" title="Photo options" aria-label="Photo options">{% icon 'more' 16 %}</summary>
+          <div class="pop-body block-body">
+            <form method="post" action="{% url 'gallery_make_avatar' ph.pk %}">{% csrf_token %}<button class="menu-item">{% icon 'user' 16 %}<span><b>Use as profile photo</b></span></button></form>
+            <form method="post" action="{% url 'gallery_delete' ph.pk %}" data-confirm="Delete this photo?">{% csrf_token %}<button class="menu-item danger">{% icon 'trash' 16 %}<span><b>Delete photo</b></span></button></form>
+          </div>
+        </details>
+      </figcaption>
+    </figure>
+    {% endfor %}
+  </div>
+  {% else %}
+    <p class="muted gallery-empty">Add up to {{ gallery_max }} photos. Each one has its own privacy setting, and you can change it any time.</p>
+  {% endif %}
+</section>

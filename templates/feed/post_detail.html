@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ post.title }}{% endblock %}
+{% block content %}
+<div class="narrow-wide">
+  <a href="{% url 'home' %}" class="back-link">{% icon 'back' 16 %} Feed</a>
+  <div class="sheet margined post-sheet">
+    {% include "feed/_post.html" with full=True %}
+
+    <section class="comments" id="comments">
+      {% if limits.no_interaction %}
+      <p class="muted">{% icon 'shield' 15 %} A moderator has turned off commenting for your account.</p>
+      {% else %}
+      <form method="post" action="{% url 'add_comment' post.pk %}" class="comment-form">
+        {% csrf_token %}
+        <textarea name="body" rows="3" maxlength="5000" placeholder="Add a comment" required aria-label="Comment"></textarea>
+        <button class="btn btn-primary btn-sm">Comment</button>
+      </form>
+      {% endif %}
+
+      {% if thread_root %}
+        <p class="thread-note">You're viewing one thread. <a href="{% url 'post_detail' post.pk %}#comments">Show all comments</a></p>
+      {% endif %}
+      <div class="thread">
+        {% for c in tree %}
+          {% include "feed/_comment.html" %}
+        {% empty %}
+          <p class="muted">No comments yet.</p>
+        {% endfor %}
+      </div>
+      {% if cpage.has_other_pages %}
+      <nav class="pager">
+        {% if cpage.has_previous %}<a class="btn btn-sm btn-ghost" href="?cpage={{ cpage.previous_page_number }}#comments">Previous comments</a>{% endif %}
+        <span class="muted small">Comments page {{ cpage.number }} of {{ cpage.paginator.num_pages }}</span>
+        {% if cpage.has_next %}<a class="btn btn-sm" href="?cpage={{ cpage.next_page_number }}#comments">More comments</a>{% endif %}
+      </nav>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

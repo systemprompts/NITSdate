@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Matchmaking{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Matchmaking</h1>
+    <p class="muted">A blind chat with someone who fits. Profiles stay hidden until you both connect.</p>
+  </div>
+</div>
+
+<div class="match-layout">
+  <div>
+  {% if current %}
+    <section class="sheet searching" id="searching" data-status-url="{% url 'match_status' %}" data-expires="{{ current.expires_at|date:'c' }}">
+      <svg class="drawing-heart" viewBox="0 0 120 110" aria-hidden="true">
+        <path pathLength="100" d="M60 98 C 18 70, 6 48, 14 30 C 22 12, 48 10, 60 34 C 72 10, 98 12, 106 30 C 114 48, 102 70, 60 98 Z"
+              fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h2 class="hand" style="font-size:1.7rem">Looking for your match</h2>
+      <p class="muted">You can close this page. The search stays open for up to {{ search_hours }} hours
+        (<span id="expires-in">until {{ current.expires_at|date:"M j, H:i" }}</span>), and a new chat will
+        appear in Messages under Matchmaking.</p>
+      <ul class="filter-summary">
+        <li><b>Age</b><span>{{ current.min_age }} to {{ current.max_age }}</span></li>
+        <li><b>Interested in</b><span>{{ likes_labels|join:", " }}</span></li>
+        {% if current.looking_for %}<li><b>Looking for</b><span>{{ current.looking_for|choice_labels:"looking_for" }}</span></li>{% endif %}
+        {% if current.personality %}<li><b>Personality</b><span>{{ current.personality|choice_labels:"personality" }}</span></li>{% endif %}
+        {% if current.years %}<li><b>Studying</b><span>{{ current.years|choice_labels:"year" }}</span></li>{% endif %}
+      </ul>
+      <form method="post" action="{% url 'match_cancel' %}">
+        {% csrf_token %}<button class="btn">{% icon 'x' 16 %} Cancel search</button>
+      </form>
+    </section>
+  {% else %}
+    <form method="post" action="{% url 'match_start' %}" class="sheet stack match-form">
+      {% csrf_token %}
+      <div class="field">
+        <span class="label">Interested in</span>
+        <div class="readonly-chips">
+          {% for l in likes_labels %}<span class="tag">{{ l }}</span>{% endfor %}
+          <a href="{% url 'my_profile' %}#f-likes" class="small muted">Change in your profile</a>
+        </div>
+      </div>
+      <div class="field">
+        <span class="label">Age range</span>
+        <div class="age-range">
+          <input type="number" name="min_age" min="{{ age_floor }}" max="{{ age_ceiling }}" value="{{ min_age }}" aria-label="Minimum age">
+          <span>to</span>
+          <input type="number" name="max_age" min="{{ age_floor }}" max="{{ age_ceiling }}" value="{{ max_age }}" aria-label="Maximum age">
+        </div>
+        {% if is_minor %}<small class="muted">You're in the under-18 group, so you're matched only with students aged {{ age_floor }}–{{ age_ceiling }}.</small>{% endif %}
+      </div>
+      {% for f in filters %}
+      <fieldset class="field">
+        <legend>{{ f.label }} <small class="muted">(leave empty for anyone)</small></legend>
+        <div class="chips">
+          {% for value, label in f.choices %}
+            <label class="chip-input"><input type="checkbox" name="{{ f.key }}" value="{{ value }}" {% if value in f.selected %}checked{% endif %}><span>{{ label }}</span></label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      {% endfor %}
+      <div class="row-gap">
+        <button class="btn btn-primary btn-lg">{% icon 'zap' 18 %} Find my match</button>
+        <span class="muted small">{{ searching_now }} other {{ searching_now|pluralize:"person is,people are" }} searching now</span>
+      </div>
+    </form>
+  {% endif %}
+  </div>
+
+  <aside class="side-text">
+    <h3>How it works</h3>
+    <ol class="steps">
+      <li>You're paired with someone whose answers fit you both: “I like” in both directions, age range and the other filters. Under-18s are only ever matched with other under-18s.</li>
+      <li>You chat under made-up nicknames. No profiles, no real names.</li>
+      <li>After {{ connect_after }} messages each, a Connect button appears. When they accept, the chat moves to your Inbox and your profiles unlock.</li>
+      <li>You're never matched with someone you're already connected with, and the same two people won't be matched again for {{ cooldown_days }} days.</li>
+    </ol>
+    {% if history %}
+    <h3 style="margin-top:1.5rem">Recent searches</h3>
+    <ul class="plain-list">
+      {% for s in history %}
+        <li>
+          {% if s.status == "matched" and s.conversation_id %}<a href="{% url 'chat_room' s.conversation_id %}">Matched</a>
+          {% else %}<span>{{ s.get_status_display }}</span>{% endif %}
+          <small class="muted">{{ s.created_at|naturaltime }}</small>
+        </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

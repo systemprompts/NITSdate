@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+{% include "moderation/_nav.html" with section="admin" %}
+<div class="grid-2">
+  <section class="sheet">
+    <h2>Moderators</h2>
+    <p class="muted small">Moderators see everything about every user (including email), review reports, remove content and limit accounts.
+      Add an email even before that person signs up; they become a moderator when they sign in with it.</p>
+    <form method="post" class="search-row">
+      {% csrf_token %}<input type="hidden" name="action" value="add">
+      <input type="email" name="email" required placeholder="name_ug_23@cse.nits.ac.in" aria-label="Moderator email">
+      <button class="btn btn-primary">{% icon 'plus' 15 %} Add moderator</button>
+    </form>
+    <ul class="plain-list">
+      {% for g in grants %}
+        <li>
+          <span>{% if g.account %}<a href="{% url 'mod_user' g.account.pk %}"><b>{{ g.account.profile.name|default:g.email }}</b></a> <span class="muted">{{ g.email }}</span>{% else %}<b>{{ g.email }}</b> <span class="muted">(hasn't signed up yet)</span>{% endif %}</span>
+          <form method="post" data-confirm="Remove moderator access for {{ g.email }}?">{% csrf_token %}<input type="hidden" name="action" value="remove"><input type="hidden" name="grant" value="{{ g.pk }}"><button class="btn btn-sm btn-ghost">Remove</button></form>
+        </li>
+      {% empty %}
+        <li class="muted">No moderators yet.</li>
+      {% endfor %}
+    </ul>
+  </section>
+  <section class="sheet">
+    <h2>Admins</h2>
+    <p class="muted small">Django superusers{% if env_admins %} and the emails in <code>ADMIN_EMAILS</code>{% endif %}. Admins can do everything moderators can, and choose the moderators.
+      Make someone an admin with <code>python manage.py make_admin their@email</code>.</p>
+    <ul class="plain-list">
+      {% for a in admins %}<li><span><b>{{ a.profile.name|default:a.username }}</b> <span class="muted">{{ a.email }}</span></span></li>{% endfor %}
+      {% for e in env_admins %}<li><span>{{ e }}</span><small class="muted">from .env</small></li>{% endfor %}
+    </ul>
+  </section>
+</div>
+<section class="sheet">
+  <h2>Recent moderator actions</h2>
+  <ul class="plain-list log">
+    {% for a in actions %}
+      <li><span><b>{{ a.mod.email|default:"?" }}</b> {{ a.action }}{% if a.target_user %}, <a href="{% url 'mod_user' a.target_user_id %}">{{ a.target_user.profile.name|default:a.target_user.email }}</a>{% endif %}{% if a.report_id %}, <a href="{% url 'mod_report' a.report_id %}">report #{{ a.report_id }}</a>{% endif %}{% if a.details %}<br><small class="muted">{{ a.details|linebreaksbr }}</small>{% endif %}</span><small class="muted">{{ a.created_at|naturaltime }}</small></li>
+    {% empty %}<li class="muted">Nothing yet.</li>{% endfor %}
+  </ul>
+</section>
+{% endblock %}

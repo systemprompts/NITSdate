@@ -1,0 +1,7 @@
+<form method="post" action="{{ action }}" class="vote {{ cls }}" data-vote>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}{{ anchor }}">
+  <button name="value" value="1" class="vote-up {% if mine == 1 %}on{% endif %}" aria-label="Upvote">{% icon 'up' 20 %}</button>
+  <span class="score">{{ score }}</span>
+  <button name="value" value="-1" class="vote-down {% if mine == -1 %}on{% endif %}" aria-label="Downvote">{% icon 'down' 20 %}</button>
+</form>

@@ -1,0 +1,15 @@
+{% if photos or hidden_photos %}
+<section class="gallery-section" id="photos">
+  <div class="gallery-head"><h2>Photos</h2></div>
+  <div class="gallery">
+    {% for ph in photos %}
+      <figure class="snap">
+        <a href="{% url 'gallery_image' owner.pk ph.pk %}" data-lightbox><img src="{% url 'gallery_image' owner.pk ph.pk %}" alt="Photo {{ forloop.counter }}" loading="lazy"></a>
+      </figure>
+    {% endfor %}
+    {% if hidden_photos %}
+      <div class="snap snap-hidden"><span>{% icon 'lock' 18 %}<br>{{ hidden_photos }} private photo{{ hidden_photos|pluralize }}</span></div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}

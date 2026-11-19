@@ -1,0 +1,93 @@
+"""Matching runs whenever a searcher starts or polls – no background worker
+needed, which keeps it compatible with serverless hosting."""
+from datetime import timedelta
+
+from django.conf import settings
+from django.db import OperationalError, transaction
+from django.utils import timezone
+
+from accounts.privacy import blocked_ids, connected_ids
+from chat.models import Conversation
+from chat.services import create_match_conversation, member_q
+
+from .models import MatchSession
+
+
+def expire_stale():
+    now = timezone.now()
+    MatchSession.objects.filter(status=MatchSession.SEARCHING, expires_at__lte=now).update(
+        status=MatchSession.EXPIRED, ended_at=now)
+
+
+def excluded_partner_ids(user):
+    """People `user` must not be matched with right now: existing connections,
+    anyone matched with in the cooldown window, and open matchmaking chats."""
+    since = timezone.now() - timedelta(days=settings.MATCH_COOLDOWN_DAYS)
+    recent = Conversation.objects.filter(member_q(user), origin=Conversation.ORIGIN_MATCH).filter(
+        created_at__gte=since) | Conversation.objects.filter(
+        member_q(user), tier=Conversation.MATCH, is_active=True)
+    ids = set(connected_ids(user)) | blocked_ids(user)
+    for u1, u2 in recent.values_list("user1_id", "user2_id"):
+        ids.add(u2 if u1 == user.pk else u1)
+    ids.add(user.pk)
+    return ids
+
+
+def _accepts(session, profile):
+    if not (session.min_age <= profile.age <= session.max_age):
+        return False
+    for field, value in (("looking_for", profile.looking_for), ("personality", profile.personality),
+                         ("years", profile.year)):
+        wanted = session.values(field)
+        if wanted and value not in wanted:
+            return False
+    return True
+
+
+def compatible(a, b):
+    pa, pb = a.user.profile, b.user.profile
+    if pa.is_minor != pb.is_minor:  # under-18s are matched only with under-18s
+        return False
+    if pb.gender not in pa.likes_list or pa.gender not in pb.likes_list:
+        return False
+    return _accepts(a, pb) and _accepts(b, pa)
+
+
+def try_match(session):
+    """Try to pair `session` with the longest-waiting compatible searcher."""
+    expire_stale()
+    session.refresh_from_db()
+    if session.status != MatchSession.SEARCHING:
+        return session
+    excluded = excluded_partner_ids(session.user)
+    if MatchSession.objects.filter(pk=session.pk, user__restriction__no_matchmaking=True).exists():
+        MatchSession.objects.filter(pk=session.pk).update(status=MatchSession.CANCELLED, ended_at=timezone.now())
+        session.refresh_from_db()
+        return session
+    candidates = (MatchSession.objects.active().exclude(user_id__in=excluded)
+                  .exclude(user__restriction__no_matchmaking=True)
+                  .select_related("user__profile").order_by("created_at")[:500])
+    for cand in candidates:
+        if not compatible(session, cand):
+            continue
+        try:
+            with transaction.atomic():
+                # lock both rows in a fixed order to avoid deadlocks between two pollers
+                locked = list(MatchSession.objects.select_for_update()
+                              .filter(pk__in=[session.pk, cand.pk]).order_by("pk"))
+                if len(locked) != 2 or any(s.status != MatchSession.SEARCHING for s in locked):
+                    session.refresh_from_db()
+                    if session.status != MatchSession.SEARCHING:
+                        return session
+                    continue
+                conv = create_match_conversation(session.user, cand.user)
+                now = timezone.now()
+                MatchSession.objects.filter(pk=session.pk).update(
+                    status=MatchSession.MATCHED, matched_with=cand.user, conversation=conv, ended_at=now)
+                MatchSession.objects.filter(pk=cand.pk).update(
+                    status=MatchSession.MATCHED, matched_with=session.user, conversation=conv, ended_at=now)
+        except OperationalError:
+            break  # lock contention – the next poll will try again
+        session.refresh_from_db()
+        return session
+    return session

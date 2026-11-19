@@ -1,0 +1,14 @@
+{% for m in messages_list %}
+  {% if m.is_system %}
+    <div class="msg-system" data-id="{{ m.pk }}"><span>{{ m.text }}</span></div>
+  {% else %}
+    <div class="msg {% if m.sender_id == me.pk %}mine{% else %}theirs{% endif %}" data-id="{{ m.pk }}">
+      <div class="bubble">
+        {% if m.removed %}<p class="removed">This message was removed by a moderator.</p>{% else %}
+        {% if m.image %}<a href="{% url 'chat_photo' m.pk %}" target="_blank" class="msg-photo"><img src="{% url 'chat_photo' m.pk %}" alt="Photo" loading="lazy"></a>{% endif %}
+        {% if m.text %}<p>{{ m.text|urlize|linebreaksbr }}</p>{% endif %}{% endif %}
+        <time datetime="{{ m.created_at|date:'c' }}">{{ m.created_at|date:"M j, H:i" }}{% if m.sender_id != me.pk and not m.removed %}<a class="msg-report" href="{% url 'report_message' m.pk %}" title="Report this message" aria-label="Report this message">{% icon 'flag' 12 %}</a>{% endif %}</time>
+      </div>
+    </div>
+  {% endif %}
+{% endfor %}

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block body_class %}chat-page{% endblock %}
+{% block main_class %}chat-container{% endblock %}
+{% block content %}
+<div class="chat tier-{{ conv.tier }}" id="chat"
+     data-poll-url="{% url 'chat_poll' conv.pk %}" data-send-url="{% url 'chat_send' conv.pk %}"
+     data-last-id="{{ last_id }}" data-tier="{{ conv.tier }}" data-active="{{ conv.is_active|yesno:'1,0' }}"
+     data-blocked="{{ msg_blocked|yesno:'1,0' }}">
+  <header class="chat-head">
+    <a href="{% url 'inbox' %}?tab={{ conv.tier }}" class="icon-btn" aria-label="Back">{% icon 'back' %}</a>
+    {% if conv.is_match %}
+      {% avatar other user "md" blind_name %}
+      <div class="grow">
+        <b class="blind">{{ title }}</b>
+        <small class="muted">You appear as {{ my_blind_name }}</small>
+      </div>
+    {% else %}
+      <a href="{% url 'profile' other.pk %}">{% avatar other user "md" %}</a>
+      <div class="grow">
+        <a href="{% url 'profile' other.pk %}"><b>{{ title }}{% if gender %}&nbsp;{% gender_mark gender %}{% endif %} {% hidden_mark name_hidden %}</b></a>
+        <small class="muted">View profile</small>
+      </div>
+    {% endif %}
+    <span class="pill pill-{{ conv.tier }}">{% if conv.tier == "priority" %}{% icon 'star' 13 %}{% elif conv.tier == "inbox" %}{% icon 'inbox' 13 %}{% else %}{% icon 'zap' 13 %}{% endif %} {{ tier_label }}</span>
+    {% include "accounts/_block_menu.html" with block=my_block conv_id=conv.pk next=request.path %}
+    {% if conv.is_match and conv.is_active %}
+      <form method="post" action="{% url 'chat_leave' conv.pk %}" data-confirm="Leave this chat? The match ends for both of you.">
+        {% csrf_token %}<button class="icon-btn" title="Leave chat" aria-label="Leave chat">{% icon 'x' %}</button>
+      </form>
+    {% endif %}
+  </header>
+
+  <div class="chat-scroll" id="chat-scroll">
+    {% for a in archived %}
+      <details class="archive" data-history-url="{% url 'chat_history' conv.pk %}?stage={{ a.stage }}">
+        <summary>{% icon 'archive' 15 %} {{ a.label }} ({{ a.count }} message{{ a.count|pluralize }})</summary>
+        <button type="button" class="btn btn-sm btn-ghost load-earlier" hidden>Load earlier messages</button>
+        <div class="archive-body"><p class="muted small">Loading…</p></div>
+      </details>
+    {% endfor %}
+    <button type="button" class="btn btn-sm btn-ghost load-earlier" id="load-earlier"
+            data-url="{% url 'chat_history' conv.pk %}?stage={{ conv.tier }}" data-before="{{ first_id }}" {% if not has_earlier %}hidden{% endif %}>Load earlier messages</button>
+    <div class="messages" id="messages">{{ messages_html }}</div>
+  </div>
+
+  <div class="chat-panel" id="chat-panel" data-key="{{ panel_key }}">{{ panel_html }}</div>
+
+  {% if conv.is_active and msg_blocked %}
+  <div class="blocked-bar">
+    {% icon 'slash' 16 %}
+    {% if my_block.messages %}
+      <span>You blocked messages from this person. Neither of you can send messages here.</span>
+      <form method="post" action="{% url 'block_in_chat' conv.pk %}">
+        {% csrf_token %}<input type="hidden" name="kind" value="messages"><input type="hidden" name="on" value="0">
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <button class="btn btn-sm">Unblock</button>
+      </form>
+    {% else %}
+      <span>You can't send messages in this chat.</span>
+    {% endif %}
+  </div>
+  {% elif conv.is_active and no_messaging %}
+  <div class="blocked-bar">{% icon 'shield' 16 %}<span>A moderator has turned off messaging for your account.</span></div>
+  {% elif conv.is_active %}
+  <form class="composer" id="composer" method="post" action="{% url 'chat_send' conv.pk %}" enctype="multipart/form-data">
+    {% csrf_token %}
+    <label class="icon-btn attach" title="Send a photo">
+      {% icon 'image' %}
+      <input type="file" name="image" accept="image/*" hidden id="photo-input">
+    </label>
+    <div class="composer-main">
+      <div class="photo-chip" id="photo-chip" hidden><span id="photo-name"></span><button type="button" id="photo-clear" aria-label="Remove photo">{% icon 'x' 13 %}</button></div>
+      <textarea name="text" id="msg-input" rows="1" maxlength="2000" placeholder="Message" aria-label="Message" autocomplete="off"></textarea>
+    </div>
+    <button class="send-btn" aria-label="Send">{% icon 'send' %}</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

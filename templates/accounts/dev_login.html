@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Test login{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Test login</h1>
+    <p class="muted">Development only (<code>DEV_LOGIN=1</code>). No password — pick a user or create one.
+      Tip: open a private window, or use <code>localhost</code> in one tab and <code>127.0.0.1</code> in another,
+      to be two people at once.</p>
+  </div>
+  <a href="{% url 'login' %}" class="btn btn-ghost">{% icon 'back' %} Back</a>
+</div>
+
+{% if remote %}
+<p class="limits-bar">{% icon 'shield' 16 %}<span>You opened test login through a public link, so admin and moderator accounts are hidden here.
+  Anyone with this link can log in as the other test accounts. Turn <code>DEV_LOGIN</code> off before real students join.</span></p>
+{% endif %}
+<div class="grid-2">
+  <section class="sheet">
+    <h2>Create a test user</h2>
+    <form method="post" class="stack">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create">
+      <label class="field"><span>Name</span><input name="name" required maxlength="60" placeholder="Riya Das"></label>
+      <label class="field"><span>Email</span><input name="email" type="email" required placeholder="riya_ug_23@cse.nits.ac.in"></label>
+      <button class="btn btn-primary">{% icon 'plus' %} Create &amp; log in</button>
+    </form>
+  </section>
+
+  <section class="sheet">
+    <h2>Existing users <span class="muted">({{ users|length }})</span></h2>
+    {% if users %}
+    <ul class="user-pick">
+      {% for u in users %}
+      <li>
+        <span class="avatar avatar-sm" style="--h:{% hue u.pk %}">{% if u.has_profile %}{{ u.profile.name|slice:":1"|upper }}{% else %}{{ u.email|slice:":1"|upper }}{% endif %}</span>
+        <div class="grow">
+          <b>{% if u.has_profile %}{{ u.profile.name }}{% else %}{{ u.get_full_name|default:u.username }}{% endif %}</b>
+          <small class="muted">{{ u.email }}{% if not u.has_profile %}, no profile yet{% endif %}</small>
+        </div>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="login">
+          <input type="hidden" name="user_id" value="{{ u.pk }}">
+          <button class="btn btn-sm">Log in</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="muted">No users yet. Create one, or run <code>python manage.py seed_demo</code>.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

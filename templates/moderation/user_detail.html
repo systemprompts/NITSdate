@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}{{ profile.name|default:target.email }}{% endblock %}
+{% block content %}
+{% include "moderation/_nav.html" with section="users" %}
+<a href="{% url 'mod_users' %}" class="back-link">{% icon 'back' 16 %} All users</a>
+
+<section class="profile-head">
+  {% if profile.photo %}<span class="avatar avatar-xl"><img src="{% url 'mod_profile_photo' target.pk %}" alt=""></span>
+  {% else %}<span class="avatar avatar-xl" style="--h:{% hue target.pk %}">{{ profile.name|default:target.email|slice:":1"|upper }}</span>{% endif %}
+  <div class="grow">
+    <h1>{{ profile.name|default:"(no profile yet)" }} {% if profile %}{% gender_mark profile.gender %}{% endif %}</h1>
+    <div class="row-gap">
+      {% if profile.is_minor %}<span class="pill pill-message">Under 18 (until {{ profile.adult_on|date:"j M Y" }})</span>{% endif %}
+      {% if target_is_admin %}<span class="pill pill-inbox">Admin</span>{% elif target_is_mod %}<span class="pill pill-inbox">Moderator</span>{% endif %}
+      {% if restriction.is_active %}<span class="pill pill-priority">{% icon 'shield' 12 %} Limited</span>{% endif %}
+      {% if profile and not profile.profile_visible %}<span class="pill">{% icon 'lock' 12 %} Locked profile</span>{% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="sheet">
+  <dl class="facts">
+    <dt>Email</dt><dd><b>{{ target.email }}</b></dd>
+    {% if profile %}<dt>Date of birth</dt><dd>
+      <b>{{ profile.birth_date|date:"j F Y" }}</b> (age {{ profile.age }})
+      {% if can_restrict %}
+      <details class="pop inline-pop"><summary class="link">Correct it</summary>
+        <form method="post" class="pop-body">
+          {% csrf_token %}<input type="hidden" name="action" value="birth_date">
+          <input type="date" name="birth_date" value="{{ profile.birth_date|date:'Y-m-d' }}" required aria-label="Date of birth">
+          <button class="btn btn-sm btn-primary">Save date of birth</button>
+          <small class="muted">Logged. Users can't change this themselves.</small>
+        </form>
+      </details>
+      {% endif %}
+    </dd>{% endif %}
+    <dt>Randomized name</dt><dd>{{ target.alias }}</dd>
+    <dt>Username</dt><dd>{{ target.username }}</dd>
+    <dt>Joined</dt><dd>{{ target.date_joined }}</dd>
+    <dt>Last login</dt><dd>{{ target.last_login|default:"never" }}</dd>
+    <dt>Activity</dt><dd>{{ connection_count }} connection{{ connection_count|pluralize }}, {{ match_sessions }} matchmaking search{{ match_sessions|pluralize:"es" }}, blocked {{ blocks_made }} {{ blocks_made|pluralize:"person,people" }}, blocked by {{ blocks_received }}</dd>
+  </dl>
+</section>
+
+{% if profile %}
+<section class="sheet margined slam">
+  <section class="slam-section">
+    <h2>Every answer, whatever its privacy</h2>
+    {% for row in rows %}
+    <div class="field-row">
+      <div class="field-margin"><span class="edit-count {% if not row.edits %}zero{% endif %}" title="Times edited">{{ row.edits }}</span></div>
+      <div class="field-main">
+        <div class="field-label">{{ row.field.label }}</div>
+        <div class="field-value">{% if row.key == "photo" %}{% if profile.photo %}Photo added{% else %}<span class="empty">No photo</span>{% endif %}{% else %}{% include "accounts/_value.html" %}{% endif %}</div>
+      </div>
+      <div class="field-actions"><span class="privacy-chip privacy-{{ row.privacy }}">{% privacy_icon row.privacy 14 %}<span>{{ row.privacy_label }}</span></span></div>
+    </div>
+    {% endfor %}
+  </section>
+</section>
+{% endif %}
+
+{% if photos %}
+<section class="gallery-section">
+  <div class="gallery-head"><h2>Photos <span class="count">{{ photos|length }}</span></h2></div>
+  <div class="gallery">
+    {% for ph in photos %}
+      <figure class="snap"><a href="{% url 'mod_gallery_photo' ph.pk %}" data-lightbox><img src="{% url 'mod_gallery_photo' ph.pk %}" alt="" loading="lazy"></a>
+        <figcaption><span class="privacy-chip privacy-{{ ph.privacy }}">{% privacy_icon ph.privacy 14 %}<span>{{ ph.get_privacy_display }}</span></span></figcaption></figure>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="sheet" id="limits">
+  <h2>Limits</h2>
+  {% if can_restrict %}
+  <form method="post" class="stack">
+    {% csrf_token %}
+    <label class="field narrow-input">
+      <span>Connection requests per day</span>
+      <input type="number" name="request_limit" min="0" max="100" value="{% if restriction.request_limit is not None %}{{ restriction.request_limit }}{% endif %}" placeholder="{{ default_limit }}">
+      <small class="muted">Leave empty for the normal limit ({{ default_limit }}). 0 turns profile requests off.</small>
+    </label>
+    <div class="limit-flags">
+      {% for flag, label in flags %}
+        <label class="check"><input type="checkbox" name="{{ flag }}" {% if restriction and restriction|attr:flag %}checked{% endif %}><span>{{ label }}</span></label>
+      {% endfor %}
+    </div>
+    <label class="field"><span>Note <small class="muted">(why; only moderators see it)</small></span>
+      <textarea name="note" rows="2" maxlength="2000">{{ restriction.note }}</textarea></label>
+    <div class="row-gap">
+      <button class="btn btn-primary">Save limits</button>
+      {% if restriction %}<small class="muted">Last changed by {{ restriction.updated_by.email|default:"—" }}, {{ restriction.updated_at|naturaltime }}</small>{% endif %}
+    </div>
+  </form>
+  {% else %}
+    <p class="muted">{% if target.pk == user.pk %}You can't limit your own account.{% elif target_is_admin %}Admins can't be limited.{% else %}Only an admin can limit another moderator.{% endif %}</p>
+  {% endif %}
+</section>
+
+<div class="grid-2">
+  <section class="sheet">
+    <h2>Reports about them <span class="count">{{ reports_against|length }}</span></h2>
+    <ul class="plain-list">{% for r in reports_against %}
+      <li><a href="{% url 'mod_report' r.pk %}">{{ r.get_kind_display }}: {{ r.get_reason_display }}</a><small class="muted">{{ r.get_status_display }}, {{ r.created_at|naturaltime }}</small></li>
+    {% empty %}<li class="muted">None</li>{% endfor %}</ul>
+  </section>
+  <section class="sheet">
+    <h2>Reports they filed <span class="count">{{ reports_filed|length }}</span></h2>
+    <ul class="plain-list">{% for r in reports_filed %}
+      <li><a href="{% url 'mod_report' r.pk %}">{{ r.get_kind_display }}: {{ r.get_reason_display }}</a><small class="muted">{{ r.created_at|naturaltime }}</small></li>
+    {% empty %}<li class="muted">None</li>{% endfor %}</ul>
+  </section>
+  <section class="sheet">
+    <h2>Recent posts</h2>
+    <ul class="plain-list">{% for p in posts %}
+      <li><a href="{% url 'post_detail' p.pk %}">{{ p.title }}</a><small class="muted">{{ p.score }} points, {{ p.created_at|naturaltime }}</small></li>
+    {% empty %}<li class="muted">None</li>{% endfor %}</ul>
+  </section>
+  <section class="sheet">
+    <h2>Recent comments</h2>
+    <ul class="plain-list">{% for c in comments %}
+      <li><a href="{% url 'post_detail' c.post_id %}#c{{ c.pk }}">{% if c.removed %}<em>removed</em>{% elif c.is_deleted %}<em>deleted</em>{% else %}{{ c.body|truncatechars:80 }}{% endif %}</a><small class="muted">{{ c.created_at|naturaltime }}</small></li>
+    {% empty %}<li class="muted">None</li>{% endfor %}</ul>
+  </section>
+  <section class="sheet">
+    <h2>Connections{% if connection_count > 50 %} <span class="count">newest 50 of {{ connection_count }}</span>{% endif %}</h2>
+    <ul class="plain-list">{% for u in connections %}
+      <li><a href="{% url 'mod_user' u.pk %}">{{ u.profile.name|default:u.email }}</a><small class="muted">{{ u.email }}</small></li>
+    {% empty %}<li class="muted">None</li>{% endfor %}</ul>
+  </section>
+  <section class="sheet">
+    <h2>Moderator log</h2>
+    <ul class="plain-list log">{% for a in actions %}
+      <li><span><b>{{ a.action }}</b> by {{ a.mod.email }}{% if a.details %}: {{ a.details|linebreaksbr }}{% endif %}</span><small class="muted">{{ a.created_at|naturaltime }}</small></li>
+    {% empty %}<li class="muted">Nothing yet</li>{% endfor %}</ul>
+  </section>
+</div>
+{% endblock %}

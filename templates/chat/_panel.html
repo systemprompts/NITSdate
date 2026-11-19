@@ -1,0 +1,65 @@
+{% if conv.tier == "match" %}
+  {% if not conv.is_active %}
+    <div class="panel-note">This matchmaking chat has ended.</div>
+  {% else %}
+    {% with s=connect %}
+    {% if s.incoming %}
+      <div class="panel-cta">
+        <span>{% icon 'heart' 16 %} They want to connect! You'll both see each other's profiles and move to the Inbox.</span>
+        <div class="row-gap">
+          <form method="post" action="{% url 'request_action' s.incoming.pk 'accept' %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Accept</button></form>
+          <form method="post" action="{% url 'request_action' s.incoming.pk 'decline' %}">{% csrf_token %}<input type="hidden" name="next" value="{% url 'chat_room' conv.pk %}"><button class="btn btn-sm btn-ghost">Not yet</button></form>
+        </div>
+      </div>
+    {% elif s.outgoing %}
+      <div class="panel-cta">
+        <span>{% icon 'clock' 16 %} Connection request sent. Waiting for them to accept.</span>
+        <form method="post" action="{% url 'request_action' s.outgoing.pk 'cancel' %}">{% csrf_token %}<input type="hidden" name="next" value="{% url 'chat_room' conv.pk %}"><button class="btn btn-sm btn-ghost">Cancel</button></form>
+      </div>
+    {% elif s.can_send %}
+      <div class="panel-cta">
+        <span>{% icon 'heart' 16 %} You've each sent {{ s.need }}+ messages. Ready to connect?</span>
+        <form method="post" action="{% url 'chat_connect' conv.pk %}">{% csrf_token %}<button class="btn btn-sm btn-primary">{% icon 'user-plus' 15 %} Connect</button></form>
+      </div>
+    {% else %}
+      <div class="progress-panel">
+        <small class="muted">Connect unlocks when you both send {{ s.need }} messages</small>
+        <div class="bars">
+          <div class="bar"><span>You</span><i style="--p:{% widthratio s.mine s.need 100 %}"></i><b>{{ s.mine|default:0 }}/{{ s.need }}</b></div>
+          <div class="bar"><span>Them</span><i style="--p:{% widthratio s.theirs s.need 100 %}"></i><b>{{ s.theirs|default:0 }}/{{ s.need }}</b></div>
+        </div>
+      </div>
+    {% endif %}
+    {% endwith %}
+  {% endif %}
+{% elif conv.tier == "inbox" %}
+  {% with s=priority %}
+  {% if s.incoming %}
+    <div class="panel-cta priority">
+      <span>{% icon 'star' 16 %} They want to make this chat Priority.</span>
+      <div class="row-gap">
+        <form method="post" action="{% url 'chat_priority_action' conv.pk s.incoming.pk 'accept' %}">{% csrf_token %}<button class="btn btn-sm btn-gold">Approve</button></form>
+        <form method="post" action="{% url 'chat_priority_action' conv.pk s.incoming.pk 'decline' %}">{% csrf_token %}<button class="btn btn-sm btn-ghost">Not now</button></form>
+      </div>
+    </div>
+  {% elif s.outgoing %}
+    <div class="panel-cta priority">
+      <span>{% icon 'clock' 16 %} Priority request sent. Waiting for them to approve.</span>
+      <form method="post" action="{% url 'chat_priority_action' conv.pk s.outgoing.pk 'cancel' %}">{% csrf_token %}<button class="btn btn-sm btn-ghost">Cancel</button></form>
+    </div>
+  {% elif s.can_send %}
+    <div class="panel-cta priority">
+      <span>{% icon 'star' 16 %} You've each sent {{ s.need }}+ messages. Make this chat Priority?</span>
+      <form method="post" action="{% url 'chat_priority' conv.pk %}">{% csrf_token %}<button class="btn btn-sm btn-gold">{% icon 'star' 15 %} Set priority</button></form>
+    </div>
+  {% else %}
+    <div class="progress-panel">
+      <small class="muted">“Set priority” unlocks at {{ s.need }} messages each</small>
+      <div class="bars">
+        <div class="bar"><span>You</span><i style="--p:{% widthratio s.mine s.need 100 %}"></i><b>{{ s.mine }}/{{ s.need }}</b></div>
+        <div class="bar"><span>Them</span><i style="--p:{% widthratio s.theirs s.need 100 %}"></i><b>{{ s.theirs }}/{{ s.need }}</b></div>
+      </div>
+    </div>
+  {% endif %}
+  {% endwith %}
+{% endif %}

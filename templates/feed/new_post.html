@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}New post{% endblock %}
+{% block content %}
+<div class="narrow">
+  <div class="page-head">
+    <h1>New post</h1>
+    <a href="{% url 'home' %}" class="btn btn-ghost">Cancel</a>
+  </div>
+  <form method="post" enctype="multipart/form-data" class="card stack">
+    {% csrf_token %}
+    <label class="field">
+      <span>Title</span>
+      <input name="title" value="{{ data.title }}" maxlength="200" required autofocus placeholder="What's on your mind?">
+      {% if errors.title %}<em class="error">{{ errors.title }}</em>{% endif %}
+    </label>
+    <label class="field">
+      <span>Text <small class="muted">(optional)</small></span>
+      <textarea name="body" rows="7" maxlength="10000" placeholder="Say more…">{{ data.body }}</textarea>
+      {% if errors.body %}<em class="error">{{ errors.body }}</em>{% endif %}
+    </label>
+    <label class="field">
+      <span>Image <small class="muted">(optional)</small></span>
+      <input type="file" name="image" accept="image/*">
+      {% if errors.image %}<em class="error">{{ errors.image }}</em>{% endif %}
+    </label>
+    <p class="muted small">Posts are public. Your name appears as each reader is allowed to see it — your randomized name for everyone else.</p>
+    <button class="btn btn-primary">Post</button>
+  </form>
+</div>
+{% endblock %}

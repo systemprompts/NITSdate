@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Welcome{% endblock %}
+{% block content %}
+<div class="narrow">
+  <div class="page-head">
+    <div>
+      <h1>Start your page</h1>
+      <p class="muted">Five quick answers. You can change them later, except your date of birth.</p>
+    </div>
+  </div>
+
+  <form method="post" class="sheet stack onboarding">
+    {% csrf_token %}
+    {% if form.errors %}<p class="form-alert" role="alert">{% icon 'info' 16 %}<span>Please check the answers marked in red below.</span></p>{% endif %}
+
+    <label class="field {% if form.name.errors %}has-error{% endif %}">
+      <span>Your name <em class="req">required</em></span>
+      {{ form.name }}
+      {% if form.name.errors %}<em class="error">{{ form.name.errors|join:" " }}</em>{% endif %}
+    </label>
+    <label class="check">
+      {{ form.randomize_name }}
+      <span>Show a randomized name to others
+        <small class="muted">Others see <b class="hand">{{ alias }}</b>. Your connections still see your real name.</small></span>
+    </label>
+
+    <fieldset class="field {% if form.gender.errors %}has-error{% endif %}">
+      <legend>Gender <em class="req">required</em></legend>
+      <div class="chips">
+        {% for radio in form.gender %}<label class="chip-input">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+      </div>
+      {% if form.gender.errors %}<em class="error">{{ form.gender.errors|join:" " }}</em>{% endif %}
+    </fieldset>
+
+    <label class="field narrow-input dob {% if form.birth_date.errors %}has-error{% endif %}">
+      <span>Date of birth <em class="req">required</em></span>
+      {{ form.birth_date }}
+      <small class="muted">Your exact date of birth. Others only see your age (with its own privacy setting).
+        Under-18s are matched and connected only with other under-18s. You can't change this later, so check it.</small>
+      {% if form.birth_date.errors %}<em class="error">{{ form.birth_date.errors|join:" " }}</em>{% endif %}
+    </label>
+
+    <fieldset class="field {% if form.likes.errors %}has-error{% endif %}">
+      <legend>I like <em class="req">required</em></legend>
+      <div class="chips">
+        {% for box in form.likes %}<label class="chip-input">{{ box.tag }}<span>{{ box.choice_label }}</span></label>{% endfor %}
+      </div>
+      <small class="muted">Pick one or more. Used for matchmaking.</small>
+      {% if form.likes.errors %}<em class="error">{{ form.likes.errors|join:" " }}</em>{% endif %}
+    </fieldset>
+
+    <label class="check">
+      {{ form.profile_visible }}
+      <span>Make my profile info visible to other users
+        <small class="muted">Untick to lock your profile, like a locked Facebook profile: only connections can read your answers.
+          Your name (or randomized name) still shows. Gender and “I like” stay hidden, but the {% icon 'info' 13 %}
+          edit-history buttons are always visible. You can change this any time from your profile.</small></span>
+    </label>
+
+    <button class="btn btn-primary btn-block btn-lg">Create my profile</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% if not row.visible %}
+  <span class="redacted" title="Hidden by their privacy settings"><i></i>{% icon 'lock' 14 %}<span class="sr-only">Hidden</span></span>
+{% elif row.field.kind == "tags" or row.field.kind == "multi" %}
+  {% if row.value %}<span class="tags">{% for t in row.value %}<span class="tag">{{ t }}</span>{% endfor %}</span>{% else %}<span class="empty">Not filled in yet</span>{% endif %}
+{% elif row.field.kind == "image" %}
+  {% if row.value %}Photo added{% else %}<span class="empty">No photo yet</span>{% endif %}
+{% elif row.field.kind == "textarea" %}
+  {% if row.value %}<span class="prose">{{ row.value|linebreaksbr }}</span>{% else %}<span class="empty">Not filled in yet</span>{% endif %}
+{% else %}
+  {% if row.value %}{{ row.value }}{% else %}<span class="empty">Not filled in yet</span>{% endif %}
+{% endif %}

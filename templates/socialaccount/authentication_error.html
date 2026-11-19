@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Sign-in problem{% endblock %}
+{% block content %}
+<div class="narrow card center">
+  <h1>Sign-in didn't work</h1>
+  <p class="muted">Something went wrong while signing in with Google. Please try again.</p>
+  <a class="btn btn-primary" href="{% url 'login' %}">Back to sign in</a>
+</div>
+{% endblock %}

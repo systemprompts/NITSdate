@@ -1,0 +1,29 @@
+<article class="post {% if full %}post-full{% endif %}">
+  {% url 'vote_post' post.pk as vote_url %}
+  {% include "feed/_vote.html" with action=vote_url score=post.score mine=post.my_vote cls="vote-col" anchor="" %}
+  <div class="post-main">
+    <div class="meta">
+      <a href="{% url 'profile' post.author_id %}" class="author">{% avatar post.author user "xs" %}<span>{{ post.author|name_html:user }}</span></a>
+      <time datetime="{{ post.created_at|date:'c' }}">{{ post.created_at|naturaltime }}</time>
+    </div>
+    {% if full %}
+      <h1 class="post-title">{{ post.title }}</h1>
+      {% if post.body %}<div class="post-body prose">{{ post.body|urlize|linebreaks }}</div>{% endif %}
+    {% else %}
+      <h2 class="post-title"><a href="{% url 'post_detail' post.pk %}">{{ post.title }}</a></h2>
+      {% if post.body %}<p class="post-excerpt">{{ post.body|truncatechars:280 }}</p>{% endif %}
+    {% endif %}
+    {% if post.image %}
+      <a href="{% url 'post_image' post.pk %}" target="_blank" class="post-image"><img src="{% url 'post_image' post.pk %}" alt="" loading="lazy"></a>
+    {% endif %}
+    <div class="post-foot">
+      <a href="{% url 'post_detail' post.pk %}#comments">{% icon 'comment' 16 %} {{ post.comment_count }} comment{{ post.comment_count|pluralize }}</a>
+      {% if post.author_id != user.pk %}<a href="{% url 'report_post' post.pk %}?next={{ request.get_full_path|urlencode }}" class="report-link">{% icon 'flag' 14 %} Report</a>{% endif %}
+      {% if full and post.author_id == user.pk %}
+        <form method="post" action="{% url 'delete_post' post.pk %}" data-confirm="Delete this post for everyone?">
+          {% csrf_token %}<button class="link danger">{% icon 'trash' 15 %} Delete post</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</article>

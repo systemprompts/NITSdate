@@ -1,0 +1,64 @@
+<section class="slam-section">
+  <h2>{{ title }}</h2>
+  {% for row in rows %}
+  <div class="field-row" id="f-{{ row.key }}">
+    <div class="field-margin">{% include "accounts/_info.html" %}</div>
+    <div class="field-main">
+      <div class="field-label">{{ row.field.label }}</div>
+      <div class="field-value">
+        {% if row.key == "photo" and row.value %}
+          <img class="photo-preview" src="{% url 'profile_photo' user.pk %}?v={{ row.edits }}" alt="Your profile photo">
+        {% else %}
+          {% include "accounts/_value.html" %}
+        {% endif %}
+      </div>
+    </div>
+    <div class="field-actions">
+      {% if row.field.kind == "birth" %}<span class="icon-btn sm locked-field" title="{{ row.field.help }}">{% icon 'lock' 15 %}</span>{% else %}
+      <button type="button" class="icon-btn sm" data-edit-toggle aria-label="Edit {{ row.field.label|lower }}" title="Edit">{% icon 'edit' 16 %}</button>{% endif %}
+      <details class="pop pop-right">
+        <summary class="privacy-chip privacy-{{ row.privacy }}" title="Who can see this" aria-label="Who can see your {{ row.field.label|lower }}: {{ row.privacy_label }}">{% privacy_icon row.privacy 15 %}<span>{{ row.privacy_label }}</span></summary>
+        <form method="post" action="{% url 'set_privacy' row.key %}" class="pop-body privacy-menu">
+          {% csrf_token %}
+          <small class="muted">Who can see your {{ row.field.label|lower }}?</small>
+          {% for value, label in privacy_choices %}
+            <button name="privacy" value="{{ value }}" class="{% if value == row.privacy %}on{% endif %}">{% privacy_icon value 15 %} {{ label }}</button>
+          {% endfor %}
+        </form>
+      </details>
+    </div>
+
+    {% if row.field.kind != "birth" %}
+    <form method="post" action="{% url 'edit_field' row.key %}" class="field-editor" {% if row.field.kind == "image" %}enctype="multipart/form-data"{% endif %}>
+      {% csrf_token %}
+      {% with f=row.field %}
+      {% if f.kind == "text" %}
+        <input name="value" value="{{ row.raw|default:'' }}" maxlength="{{ f.max_length }}" placeholder="{{ f.placeholder }}" aria-label="{{ f.label }}" {% if f.key == "branch" %}list="branch-list"{% endif %} {% if f.required %}required{% endif %}>
+      {% elif f.kind == "textarea" %}
+        <textarea name="value" rows="3" maxlength="{{ f.max_length }}" placeholder="{{ f.placeholder }}" aria-label="{{ f.label }}">{{ row.raw|default:'' }}</textarea>
+      {% elif f.kind == "tags" %}
+        <input name="value" value="{{ row.raw|join:', ' }}" maxlength="{{ f.max_length }}" placeholder="{{ f.placeholder }}" aria-label="{{ f.label }}">
+      {% elif f.kind == "choice" %}
+        <select name="value" aria-label="{{ f.label }}">
+          {% if not f.required %}<option value="">Not set</option>{% endif %}
+          {% for value, label in f.choices %}<option value="{{ value }}" {% if value == row.raw %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      {% elif f.kind == "multi" %}
+        <div class="chips">
+          {% for value, label in f.choices %}<label class="chip-input"><input type="checkbox" name="value" value="{{ value }}" {% if value in row.raw %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
+        </div>
+      {% elif f.kind == "image" %}
+        <input type="file" name="value" accept="image/*" aria-label="{{ f.label }}">
+      {% endif %}
+      {% if f.help %}<small class="muted">{{ f.help }}</small>{% endif %}
+      <div class="row-gap">
+        <button class="btn btn-sm btn-primary">Save</button>
+        <button type="button" class="btn btn-sm btn-ghost" data-edit-toggle>Cancel</button>
+        {% if f.kind == "image" and row.value %}<button class="btn btn-sm btn-danger-ghost" name="remove" value="1" formnovalidate>Remove photo</button>{% endif %}
+      </div>
+      {% endwith %}
+    </form>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>

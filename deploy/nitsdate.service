@@ -1,0 +1,23 @@
+# systemd unit for the app. Install:
+#   sudo cp deploy/nitsdate.service /etc/systemd/system/ && sudo systemctl enable --now nitsdate
+[Unit]
+Description=nitsdate (gunicorn)
+After=network.target mariadb.service
+Wants=mariadb.service
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/nitsdate
+ExecStart=/home/ubuntu/nitsdate/.venv/bin/gunicorn config.wsgi:application \
+    --bind 127.0.0.1:8010 --workers 3 --threads 2 --timeout 30 \
+    --max-requests 2000 --max-requests-jitter 200 --access-logfile - --error-logfile -
+Restart=on-failure
+RestartSec=3
+# hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

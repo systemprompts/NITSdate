@@ -1,0 +1,36 @@
+{% comment %}Block options. Needs: block (Block or None), next, and either target (profile page) or conv_id (chat:
+never put the user's id in a chat page, it would un-blind matchmaking); optional label.{% endcomment %}
+<details class="pop pop-right block-menu">
+  {% if label %}
+    <summary class="btn btn-sm btn-ghost" title="Block options">{% icon 'slash' 15 %} {{ label }}</summary>
+  {% else %}
+    <summary class="icon-btn" title="Block options" aria-label="Block options">{% icon 'slash' 18 %}</summary>
+  {% endif %}
+  <div class="pop-body block-body">
+    <form method="post" action="{% if conv_id %}{% url 'block_in_chat' conv_id %}{% else %}{% url 'block_user' target.pk %}{% endif %}">
+      {% csrf_token %}
+      <input type="hidden" name="kind" value="messages">
+      <input type="hidden" name="on" value="{% if block.messages %}0{% else %}1{% endif %}">
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="menu-item {% if block.messages %}on{% endif %}">
+        {% icon 'chat' 17 %}
+        <span>{% if block.messages %}<b>Unblock messages</b><small>You'll both be able to send messages again.</small>
+              {% else %}<b>Block messages</b><small>Neither of you can send messages in your chats.</small>{% endif %}</span>
+      </button>
+    </form>
+    <form method="post" action="{% if conv_id %}{% url 'block_in_chat' conv_id %}{% else %}{% url 'block_user' target.pk %}{% endif %}">
+      {% csrf_token %}
+      <input type="hidden" name="kind" value="profile">
+      <input type="hidden" name="on" value="{% if block.profile %}0{% else %}1{% endif %}">
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="menu-item {% if block.profile %}on{% endif %}">
+        {% icon 'eye' 17 %}
+        <span>{% if block.profile %}<b>Show my profile again</b><small>They'll see it according to your privacy settings.</small>
+              {% else %}<b>Hide my profile from them</b><small>They won't see your profile, photos or real name.</small>{% endif %}</span>
+      </button>
+    </form>
+    <a class="menu-item" href="{% if conv_id %}{% url 'report_chat' conv_id %}{% else %}{% url 'report_profile' target.pk %}{% endif %}?next={{ next|urlencode }}">
+      {% icon 'flag' 17 %}<span><b>Report</b><small>Tell the moderators. They won't know it was you.</small></span>
+    </a>
+  </div>
+</details>
