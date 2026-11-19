@@ -24,6 +24,7 @@ def not_found(request, *args, **kwargs):
 
 urlpatterns = [
     path("robots.txt", robots_txt),
+    path("favicon.ico", RedirectView.as_view(url=settings.STATIC_URL + "img/favicon.svg", permanent=True)),
     path("healthz", healthz),
     path("privacy/", TemplateView.as_view(template_name="legal/privacy.html",
                                           extra_context={"contact_email": settings.CONTACT_EMAIL}), name="privacy"),
