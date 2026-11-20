@@ -320,7 +320,8 @@
         else if (data.status !== "searching") location.reload();
       } catch (_) {}
     };
-    setInterval(check, 4000);
+    // a new search shows "matching" for a few seconds; the first check comes right after that
+    setTimeout(() => { check(); setInterval(check, 4000); }, +searching.dataset.firstCheck || 4000);
     tick();
     setInterval(tick, 30000);
   }

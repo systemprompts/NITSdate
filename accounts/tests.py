@@ -2,7 +2,7 @@ from datetime import timedelta
 from io import BytesIO
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
@@ -37,7 +37,7 @@ def png_bytes():
     return buf.getvalue()
 
 
-@override_settings(MEDIA_ROOT="/tmp/nitsdate-test-media")
+@override_settings(MEDIA_ROOT="/tmp/nitsdate-test-media", MATCH_REVEAL_SECONDS=0)
 class FlowTests(TestCase):
     def setUp(self):
         self.a = make_user("Aarav Test", "male", 21, "female")
@@ -239,6 +239,64 @@ class FlowTests(TestCase):
         self.start_search(self.a, use_looking_for="1", looking_for=["friendship"])
         self.start_search(self.b)                           # b didn't switch the filter on
         self.assertTrue(Conversation.objects.exists())
+
+    @override_settings(MATCH_REVEAL_SECONDS=3)
+    def test_new_search_shows_matching_screen_first(self):
+        self.start_search(self.a)
+        resp = self.start_search(self.b)
+        self.assertRedirects(resp, reverse("match"))           # not straight into a chat
+        self.assertFalse(Conversation.objects.exists())
+        page = self.client.get(reverse("match"))
+        self.assertContains(page, 'id="searching"')
+        self.assertContains(page, 'data-first-check="')
+        self.assertFalse(Conversation.objects.exists())        # still too new, even though a fits
+        MatchSession.objects.update(created_at=timezone.now() - timedelta(seconds=4))
+        data = self.client.get(reverse("match_status")).json()
+        conv = Conversation.objects.get()
+        self.assertEqual(data, {"status": "matched", "url": reverse("chat_room", args=[conv.pk])})
+
+    @override_settings(MATCH_REVEAL_SECONDS=3)
+    def test_match_made_by_the_other_side_still_reaches_the_new_searcher(self):
+        other = Client()                                         # a searches in their own browser
+        other.force_login(self.a)
+        other.post(reverse("match_start"), {"min_age": 18, "max_age": 30})
+        self.start_search(self.b)
+        MatchSession.objects.update(created_at=timezone.now() - timedelta(seconds=4))
+        other.get(reverse("match_status"))                      # a's poll makes the match
+        conv = Conversation.objects.get()
+        self.assertRedirects(self.client.get(reverse("match")), reverse("chat_room", args=[conv.pk]))
+        self.assertEqual(self.client.get(reverse("match")).status_code, 200)   # only once
+
+    def test_people_active_recently_are_matched_first(self):
+        early = make_user("Early Bird", "female", 20, "male")
+        late = make_user("Late Comer", "female", 20, "male")
+        self.start_search(early)
+        self.start_search(late)
+        User.objects.filter(pk=early.pk).update(last_seen=timezone.now() - timedelta(hours=1))
+        User.objects.filter(pk=late.pk).update(last_seen=timezone.now() - timedelta(minutes=5))
+        self.start_search(self.a)          # early has waited longer, but late was here 5 minutes ago
+        conv = Conversation.objects.get()
+        self.assertEqual({conv.user1_id, conv.user2_id}, {self.a.pk, late.pk})
+        # nobody active left: first come, first served
+        d = make_user("Dev Test", "male", 22, "female")
+        self.start_search(d)
+        conv = Conversation.objects.exclude(pk=conv.pk).get()
+        self.assertEqual({conv.user1_id, conv.user2_id}, {d.pk, early.pk})
+
+    def test_last_seen_is_noted_at_most_once_a_minute(self):
+        self.login(self.a)
+        self.client.get(reverse("my_profile"))
+        self.a.refresh_from_db()
+        self.assertIsNotNone(self.a.last_seen)
+        half_minute_ago = timezone.now() - timedelta(seconds=30)
+        User.objects.filter(pk=self.a.pk).update(last_seen=half_minute_ago)
+        self.client.get(reverse("my_profile"))
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.last_seen, half_minute_ago)
+        User.objects.filter(pk=self.a.pk).update(last_seen=timezone.now() - timedelta(minutes=2))
+        self.client.get(reverse("my_profile"))
+        self.a.refresh_from_db()
+        self.assertGreater(self.a.last_seen, half_minute_ago)
 
     def test_search_expires(self):
         self.start_search(self.a)
@@ -451,7 +509,7 @@ class GenderEmojiTests(TestCase):
         self.assertNotIn(self.MALE, self.client.get(reverse("inbox") + "?tab=match").content.decode())
 
 
-@override_settings(MEDIA_ROOT="/tmp/nitsdate-test-media")
+@override_settings(MEDIA_ROOT="/tmp/nitsdate-test-media", MATCH_REVEAL_SECONDS=0)
 class BlockAndGalleryTests(TestCase):
     def setUp(self):
         self.a = make_user("Asha Block", "female", 20, "male")
@@ -607,7 +665,7 @@ class BlockAndGalleryTests(TestCase):
 
 
 
-@override_settings(MEDIA_ROOT="/tmp/nitsdate-test-media")
+@override_settings(MEDIA_ROOT="/tmp/nitsdate-test-media", MATCH_REVEAL_SECONDS=0)
 class AgeGroupTests(TestCase):
     """Under-18s (16-17) are paired only with under-18s; everything else is the same for everyone."""
 

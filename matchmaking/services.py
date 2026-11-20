@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import OperationalError, transaction
+from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 
 from accounts.privacy import blocked_ids, connected_ids
@@ -68,19 +69,30 @@ def compatible(a, b):
 
 
 def try_match(session):
-    """Try to pair `session` with the longest-waiting compatible searcher."""
+    """Try to pair `session` with a compatible searcher: first those who've been on the site in the
+    last MATCH_ACTIVE_MINUTES, longest-waiting first; then everyone else, longest-waiting first.
+
+    A search only joins in once it's MATCH_REVEAL_SECONDS old, so the "matching" screen always
+    shows for a moment, even when someone fits straight away."""
     expire_stale()
     session.refresh_from_db()
     if session.status != MatchSession.SEARCHING:
+        return session
+    now = timezone.now()
+    settled = now - timedelta(seconds=settings.MATCH_REVEAL_SECONDS)
+    if session.created_at > settled:
         return session
     excluded = excluded_partner_ids(session.user)
     if MatchSession.objects.filter(pk=session.pk, user__restriction__no_matchmaking=True).exists():
         MatchSession.objects.filter(pk=session.pk).update(status=MatchSession.CANCELLED, ended_at=timezone.now())
         session.refresh_from_db()
         return session
-    candidates = (MatchSession.objects.active().exclude(user_id__in=excluded)
+    around = now - timedelta(minutes=settings.MATCH_ACTIVE_MINUTES)
+    candidates = (MatchSession.objects.active().filter(created_at__lte=settled).exclude(user_id__in=excluded)
                   .exclude(user__restriction__no_matchmaking=True)
-                  .select_related("user__profile").order_by("created_at")[:500])
+                  .annotate(away=Case(When(user__last_seen__gte=around, then=Value(0)), default=Value(1),
+                                      output_field=IntegerField()))
+                  .select_related("user__profile").order_by("away", "created_at")[:500])
     for cand in candidates:
         if not compatible(session, cand):
             continue

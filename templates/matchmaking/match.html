@@ -11,7 +11,7 @@
 <div class="match-layout">
   <div>
   {% if current %}
-    <section class="sheet searching" id="searching" data-status-url="{% url 'match_status' %}" data-expires="{{ current.expires_at|date:'c' }}">
+    <section class="sheet searching" id="searching" data-status-url="{% url 'match_status' %}" data-expires="{{ current.expires_at|date:'c' }}" data-first-check="{{ first_check_ms }}">
       <svg class="drawing-heart" viewBox="0 0 120 110" aria-hidden="true">
         <path pathLength="100" d="M60 98 C 18 70, 6 48, 14 30 C 22 12, 48 10, 60 34 C 72 10, 98 12, 106 30 C 114 48, 102 70, 60 98 Z"
               fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>

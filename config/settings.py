@@ -63,6 +63,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
     "accounts.middleware.OnboardingMiddleware",
+    "accounts.middleware.LastSeenMiddleware",
 ]
 
 if DEBUG:  # runserver serves static files itself; WhiteNoise is for production
@@ -218,6 +219,8 @@ MATCH_CONNECT_MESSAGES = env_int("MATCH_CONNECT_MESSAGES", 10)   # each side, in
 PRIORITY_MESSAGES = env_int("PRIORITY_MESSAGES", 100)            # each side, whole conversation
 MATCH_SEARCH_HOURS = env_int("MATCH_SEARCH_HOURS", 24)           # a search stays open this long
 MATCH_COOLDOWN_DAYS = env_int("MATCH_COOLDOWN_DAYS", 3)          # same pair can't re-match within
+MATCH_REVEAL_SECONDS = env_int("MATCH_REVEAL_SECONDS", 3)        # a new search shows "matching" at least this long
+MATCH_ACTIVE_MINUTES = env_int("MATCH_ACTIVE_MINUTES", 20)       # searchers seen this recently are paired first
 MIN_AGE = 16      # youngest allowed to join
 ADULT_AGE = 18    # under this, people are only paired (matchmaking + connections) with each other
 GALLERY_MAX_PHOTOS = env_int("GALLERY_MAX_PHOTOS", 10)

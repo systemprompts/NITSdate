@@ -38,15 +38,34 @@ def _current(user):
     return MatchSession.objects.active().filter(user=user).first()
 
 
+PENDING = "match_pending"   # session key: the search this browser is showing the "matching" screen for
+
+
+def _first_check_ms(current):
+    """When the searching page should first ask for news: right after a new search becomes matchable,
+    otherwise on the normal 4-second beat."""
+    if current is None:
+        return 4000
+    left = (current.created_at + timedelta(seconds=settings.MATCH_REVEAL_SECONDS) - timezone.now()).total_seconds()
+    return int(left * 1000) + 300 if left > 0 else 4000
+
+
 @login_required
 def match_home(request):
     me = request.user
     current = _current(me)
     if current:
         current = try_match(current)
-        if current.status == MatchSession.MATCHED:
-            messages.success(request, "It's a match! Say hi 👋")
-            return redirect("chat_room", pk=current.conversation_id)
+    else:
+        # the search started in this browser may have been matched by the other person before this page loaded
+        pending = request.session.pop(PENDING, None)
+        current = MatchSession.objects.filter(pk=pending, user=me).first() if pending else None
+    if current and current.status == MatchSession.MATCHED and current.conversation_id:
+        request.session.pop(PENDING, None)
+        messages.success(request, "It's a match! Say hi 👋")
+        return redirect("chat_room", pk=current.conversation_id)
+    if current and current.status != MatchSession.SEARCHING:
+        current = None
     last = MatchSession.objects.filter(user=me).first()
     lo, hi = age_bounds(me.profile)
     selected = {key: (last.values(key) if last else []) for key, *_ in FILTERS}
@@ -70,6 +89,7 @@ def match_home(request):
         "cooldown_days": settings.MATCH_COOLDOWN_DAYS,
         "connect_after": settings.MATCH_CONNECT_MESSAGES,
         "mm_blocked": restriction_for(me).no_matchmaking,
+        "first_check_ms": _first_check_ms(current),
     })
 
 
@@ -103,8 +123,10 @@ def start(request):
     session = MatchSession.objects.create(
         user=me, min_age=min_age, max_age=max_age,
         expires_at=timezone.now() + timedelta(hours=settings.MATCH_SEARCH_HOURS), **chosen)
-    session = try_match(session)
+    request.session[PENDING] = session.pk
+    session = try_match(session)   # waits for MATCH_REVEAL_SECONDS, so normally the searching page shows first
     if session.status == MatchSession.MATCHED:
+        request.session.pop(PENDING, None)
         messages.success(request, "It's a match! Say hi 👋")
         return redirect("chat_room", pk=session.conversation_id)
     return redirect("match")
@@ -132,4 +154,5 @@ def status(request):
     data = {"status": current.status}
     if current.status == MatchSession.MATCHED and current.conversation_id:
         data["url"] = reverse("chat_room", args=[current.conversation_id])
+        request.session.pop(PENDING, None)
     return JsonResponse(data)

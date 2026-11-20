@@ -13,7 +13,9 @@
     <li><b>What you add:</b> profile answers, date of birth, gender, photos, posts, comments, votes, messages and
       chat photos, connections, blocks and reports.</li>
     <li><b>Technical:</b> a sign-in cookie and a security (CSRF) cookie. Your light/dark choice stays in your own
-      browser. The server's access logs record IP addresses and the pages requested; they are deleted after 14 days.</li>
+      browser. The time you were last on the site, which matchmaking uses only to pair people who are around first;
+      nobody is shown it. The server's access logs record IP addresses and the pages requested; they are deleted
+      after 14 days.</li>
   </ul>
   <p>No ads, no analytics or tracking scripts, and nothing is sold or shared with advertisers.
     The site's fonts load from Google Fonts, so Google sees your IP address when a page loads.</p>
@@ -48,10 +50,10 @@
     required for this, and only a moderator can correct it.</p>
 
   <h2>Deleting things</h2>
-  <p>You can delete your posts, comments and photos at any time.
-    {% if contact_email %}To delete your whole account and everything in it, email
-    <a href="mailto:{{ contact_email }}">{{ contact_email }}</a> from the address you sign in with.
-    It is removed from the site, and drops out of backups within 14 days.{% endif %}</p>
+  <p>You can delete your posts, comments and photos at any time. To delete your whole account and everything in
+    it, use <b>Delete my account</b> at the bottom of your profile page{% if contact_email %}, or email
+    <a href="mailto:{{ contact_email }}">{{ contact_email }}</a> from the address you sign in with{% endif %}.
+    It is removed from the site straight away, and drops out of backups within 14 days.</p>
 
   <p class="muted"><a href="{% url 'terms' %}">Terms</a> · <a href="/">Back to nitsdate</a></p>
 </article>

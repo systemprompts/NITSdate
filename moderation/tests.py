@@ -15,6 +15,7 @@ from accounts.models import Profile
 from .models import AllowedEmail, ModAction, ModeratorGrant, Report, Restriction
 
 
+@override_settings(MATCH_REVEAL_SECONDS=0)
 class ModerationTests(TestCase):
     def setUp(self):
         self.alice = make_user("Alice Mod", "female", 20, "male")

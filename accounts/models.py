@@ -31,6 +31,9 @@ def generate_alias():
 class User(AbstractUser):
     alias = models.CharField(max_length=40, unique=True, blank=True,
                              help_text="Randomized name shown when the real name is hidden.")
+    # when they were last on the site (updated at most once a minute); only matchmaking uses it,
+    # to pair people who are around first. Never shown to anyone.
+    last_seen = models.DateTimeField(null=True, blank=True, editable=False)
 
     def save(self, *args, **kwargs):
         if not self.alias:
