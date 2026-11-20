@@ -10,7 +10,9 @@ from chat.services import connect_users, create_match_conversation
 from feed.models import Comment, Post, PostVote
 from matchmaking.models import MatchSession
 
-from .models import ModAction, ModeratorGrant, Report, Restriction
+from accounts.models import Profile
+
+from .models import AllowedEmail, ModAction, ModeratorGrant, Report, Restriction
 
 
 class ModerationTests(TestCase):
@@ -408,3 +410,99 @@ class ScoreCacheTests(TestCase):
         voter.delete()
         post.refresh_from_db()
         self.assertEqual(post.score, 0)
+
+
+class AccountToolsTests(TestCase):
+    """Moderators deleting accounts, and the college-email allowlist."""
+
+    def setUp(self):
+        self.alice = make_user("Alice Real", "female", 20, "male")
+        self.bob = make_user("Bob Gone", "male", 21, "female")
+        self.mod = make_user("Mona Mod", "female", 22, "male")
+        ModeratorGrant.objects.create(email=self.mod.email)
+        self.admin = make_user("Adi Admin", "male", 23, "female")
+        self.admin.is_superuser = True
+        self.admin.email = "operator@gmail.com"
+        self.admin.save()
+        self.client.force_login(self.mod)
+
+    def _content(self):
+        post = Post.objects.create(author=self.bob, title="bob's post", body="hello")
+        Comment.objects.create(post=post, author=self.alice, body="alice under bob's post")
+        alice_post = Post.objects.create(author=self.alice, title="alice's post", body="hi", comment_count=2)
+        bob_comment = Comment.objects.create(post=alice_post, author=self.bob, body="bob's comment")
+        reply = Comment.objects.create(post=alice_post, author=self.alice, parent=bob_comment, body="alice's reply")
+        conv = connect_users(self.alice, self.bob)
+        Message.objects.create(conversation=conv, sender=self.bob, stage=conv.tier, text="bob says hi")
+        return post, alice_post, bob_comment, reply, conv
+
+    def test_delete_keeping_content(self):
+        post, alice_post, bob_comment, reply, conv = self._content()
+        bob_client = Client()
+        bob_client.force_login(self.bob)
+        self.assertContains(self.client.get(reverse("mod_delete_user", args=[self.bob.pk])), "Delete account")
+        self.client.post(reverse("mod_delete_user", args=[self.bob.pk]))
+        self.bob.refresh_from_db()
+        self.assertFalse(self.bob.is_active)
+        self.assertEqual(self.bob.email, "")
+        self.assertFalse(Profile.objects.filter(user=self.bob).exists())
+        self.assertFalse(Connection.objects.exists())
+        self.assertTrue(Post.objects.filter(pk=post.pk).exists())                 # content kept
+        self.assertEqual(Comment.objects.get(pk=bob_comment.pk).body, "bob's comment")
+        conv.refresh_from_db()
+        self.assertFalse(conv.is_active)                                          # chat ended, history kept
+        self.assertTrue(conv.messages.filter(text="bob says hi").exists())
+        self.assertTrue(ModAction.objects.filter(action="deleted account", target_user=self.bob).exists())
+        # others see "Deleted account" and can't write to them any more
+        self.client.force_login(self.alice)
+        self.assertContains(self.client.get(reverse("post_detail", args=[post.pk])), "Deleted account")
+        resp = self.client.post(reverse("chat_send", args=[conv.pk]), {"text": "hello?"}, HTTP_X_REQUESTED_WITH="fetch")
+        self.assertEqual(resp.status_code, 400)
+        # the deleted person is signed out
+        self.assertRedirects(bob_client.get("/"), reverse("login"), fetch_redirect_response=False)
+
+    def test_delete_with_content(self):
+        post, alice_post, bob_comment, reply, conv = self._content()
+        self.client.post(reverse("mod_delete_user", args=[self.bob.pk]), {"remove_content": "on"})
+        self.assertFalse(Post.objects.filter(pk=post.pk).exists())                # their posts are gone
+        self.assertFalse(Conversation.objects.filter(pk=conv.pk).exists())       # and their chats
+        c = Comment.objects.get(pk=bob_comment.pk)
+        self.assertTrue(c.is_deleted)
+        self.assertEqual(c.body, "")
+        self.assertTrue(Comment.objects.filter(pk=reply.pk).exists())             # other people's replies stay
+        alice_post.refresh_from_db()
+        self.assertEqual(alice_post.comment_count, 1)
+
+    def test_who_can_delete(self):
+        self.assertEqual(self.client.get(reverse("mod_delete_user", args=[self.admin.pk])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("mod_delete_user", args=[self.mod.pk])).status_code, 404)
+        self.client.force_login(self.alice)                                       # not a moderator
+        self.assertEqual(self.client.post(reverse("mod_delete_user", args=[self.bob.pk])).status_code, 404)
+        self.bob.refresh_from_db()
+        self.assertTrue(self.bob.is_active)
+
+    @override_settings(ALLOWED_EMAIL_DOMAIN="nits.ac.in")
+    def test_college_rule_and_allowlist(self):
+        from accounts.adapters import may_sign_in
+        self.assertTrue(may_sign_in("x_ug_23@cse.nits.ac.in"))
+        self.assertFalse(may_sign_in("friend@gmail.com"))
+        self.assertTrue(may_sign_in(self.admin.email))                           # admins always get in
+        self.client.post(reverse("mod_allowlist"), {"action": "add", "email": "Friend@Gmail.com", "note": "alumni"})
+        self.assertTrue(may_sign_in("friend@gmail.com"))
+        self.assertTrue(ModAction.objects.filter(action="allowed email").exists())
+
+    @override_settings(ALLOWED_EMAIL_DOMAIN="nits.ac.in")
+    def test_existing_outside_session_is_signed_out_until_allowed(self):
+        outsider = make_user("Out Sider", "male", 20, "female")
+        outsider.email = "outsider@gmail.com"                                    # joined before the rule
+        outsider.save()
+        c = Client()
+        c.force_login(outsider)
+        self.assertRedirects(c.get("/"), reverse("login"), fetch_redirect_response=False)
+        self.assertContains(self.client.get(reverse("mod_allowlist")), outsider.email)  # listed as can't sign in
+        self.client.post(reverse("mod_allowlist"), {"action": "add", "email": outsider.email})
+        c.force_login(outsider)
+        self.assertEqual(c.get("/").status_code, 200)
+        entry = AllowedEmail.objects.get()
+        self.client.post(reverse("mod_allowlist"), {"action": "remove", "entry": entry.pk})
+        self.assertRedirects(c.get("/"), reverse("login"), fetch_redirect_response=False)

@@ -116,7 +116,12 @@ def field_visible(profile, key, rel):
     return profile.profile_visible
 
 
+DELETED_NAME = "Deleted account"
+
+
 def display_name(owner, viewer):
+    if not owner.is_active:  # a moderator deleted the account; its row stays so threads and chats keep their shape
+        return DELETED_NAME
     profile = get_profile(owner)
     if profile is None:
         return owner.alias
@@ -126,6 +131,8 @@ def display_name(owner, viewer):
 
 def name_is_hidden(owner, viewer):
     """True when `viewer` sees the randomized alias instead of the real name."""
+    if not owner.is_active:
+        return False
     profile = get_profile(owner)
     if profile is None:
         return True

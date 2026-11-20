@@ -187,6 +187,8 @@ def send_priority_request(conv, user):
         conv = Conversation.objects.select_for_update().get(pk=conv.pk)
         if conv.tier != Conversation.INBOX:
             raise WorkflowError("Only inbox chats can become priority.")
+        if not conv.is_active:
+            raise WorkflowError("This chat has ended.")
         if messages_blocked(conv.user1_id, conv.user2_id):
             raise WorkflowError("Messages are blocked in this chat.")
         state = priority_state(conv, user)
@@ -204,6 +206,8 @@ def accept_priority_request(preq, by_user):
         if preq.to_user_id != by_user.pk or preq.status != PriorityRequest.PENDING:
             raise WorkflowError("This request is no longer pending.")
         conv = Conversation.objects.select_for_update().get(pk=preq.conversation_id)
+        if not conv.is_active:
+            raise WorkflowError("This chat has ended.")
         now = timezone.now()
         preq.status = PriorityRequest.ACCEPTED
         preq.responded_at = now

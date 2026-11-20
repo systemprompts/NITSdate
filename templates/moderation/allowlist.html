@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Allowed emails{% endblock %}
+{% block content %}
+{% include "moderation/_nav.html" with section="allowlist" %}
+<div class="grid-2">
+  <section class="sheet">
+    <h2>Allowed emails</h2>
+    <p class="muted small">
+      {% if domain %}Only addresses ending in <b>{{ domain }}</b> can sign in. Emails on this list can sign in too
+        (moderators and admins always can).
+      {% else %}The college-email rule is off right now, so any Google account can sign in. This list starts to matter
+        once it's switched on.{% endif %}
+      Removing an email signs that person out on their next click.</p>
+    <form method="post" class="stack">
+      {% csrf_token %}<input type="hidden" name="action" value="add">
+      <input type="email" name="email" required placeholder="someone@gmail.com" aria-label="Email to allow">
+      <input type="text" name="note" maxlength="200" placeholder="Why (optional, only moderators see it)" aria-label="Note">
+      <button class="btn btn-primary">{% icon 'plus' 15 %} Allow this email</button>
+    </form>
+    <ul class="plain-list">
+      {% for e in entries %}
+        <li>
+          <span>{% if e.account %}<a href="{% url 'mod_user' e.account.pk %}"><b>{{ e.email }}</b></a>{% else %}<b>{{ e.email }}</b> <span class="muted">(hasn't signed up yet)</span>{% endif %}
+            {% if e.note %}<br><small class="muted">{{ e.note }}</small>{% endif %}
+            <br><small class="muted">added by {{ e.added_by.email|default:"?" }}, {{ e.created_at|naturaltime }}</small></span>
+          <form method="post" data-confirm="Remove {{ e.email }} from the allowed list?">{% csrf_token %}<input type="hidden" name="action" value="remove"><input type="hidden" name="entry" value="{{ e.pk }}"><button class="btn btn-sm btn-ghost">Remove</button></form>
+        </li>
+      {% empty %}
+        <li class="muted">No extra emails allowed.</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% if domain %}
+  <section class="sheet">
+    <h2>Accounts that can't sign in <span class="count">{{ blocked|length }}</span></h2>
+    <p class="muted small">They joined before the college-email rule, or their entry was removed. Allow one to let them back in.</p>
+    <ul class="plain-list">
+      {% for u in blocked %}
+        <li>
+          <span><a href="{% url 'mod_user' u.pk %}"><b>{{ u.profile.name|default:u.email }}</b></a> <span class="muted">{{ u.email }}</span></span>
+          <form method="post">{% csrf_token %}<input type="hidden" name="action" value="add"><input type="hidden" name="email" value="{{ u.email }}"><button class="btn btn-sm">Allow</button></form>
+        </li>
+      {% empty %}
+        <li class="muted">None.</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

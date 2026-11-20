@@ -16,6 +16,21 @@ class ModeratorGrant(models.Model):
         super().save(*args, **kwargs)
 
 
+class AllowedEmail(models.Model):
+    """Emails moderators let in even though they aren't college addresses (see ALLOWED_EMAIL_DOMAIN)."""
+    email = models.EmailField(unique=True)
+    note = models.CharField(max_length=200, blank=True)
+    added_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["email"]
+
+    def save(self, *args, **kwargs):
+        self.email = self.email.strip().lower()
+        super().save(*args, **kwargs)
+
+
 class Report(models.Model):
     POST, COMMENT, MESSAGE, PROFILE = "post", "comment", "message", "profile"
     KINDS = [(POST, "Post"), (COMMENT, "Comment"), (MESSAGE, "Message"), (PROFILE, "Profile")]

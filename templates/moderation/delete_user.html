@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Delete account{% endblock %}
+{% block content %}
+{% include "moderation/_nav.html" with section="users" %}
+<a href="{% url 'mod_user' target.pk %}" class="back-link">{% icon 'back' 16 %} Back to {{ profile.name|default:target.email }}</a>
+
+<section class="sheet narrow-wide">
+  <h1>Delete {{ profile.name|default:target.email }}'s account?</h1>
+  <p><b>{{ target.email }}</b>{% if profile %} · shown to others as {{ target.alias }}{% endif %}</p>
+  <p class="muted">This can't be undone. Their email, name, profile, photos, connections, blocks and Google sign-in link
+    are removed, and they're signed out everywhere. If they sign in with Google again they start as a brand-new account.</p>
+
+  <ul class="plain-list">
+    <li><span>Posts</span><b>{{ summary.posts }}</b></li>
+    <li><span>Comments</span><b>{{ summary.comments }}</b></li>
+    <li><span>Chats</span><b>{{ summary.chats }}</b></li>
+    <li><span>Messages they sent</span><b>{{ summary.messages }}</b></li>
+    <li><span>Photos (profile and gallery)</span><b>{{ summary.photos }}</b></li>
+  </ul>
+
+  <form method="post" class="stack" data-confirm="Delete this account? This can't be undone.">
+    {% csrf_token %}
+    <label class="check"><input type="checkbox" name="remove_content">
+      <span><b>Also delete everything they posted and every chat they were in</b>
+        <small class="muted">Their posts (with the comments under them) and chats are deleted for both sides; their comments
+          elsewhere become “deleted” so replies stay in place. Leave this unticked to keep it all, shown as written by
+          “Deleted account”; their chats then end and nothing more can be sent in them.</small></span></label>
+    <div class="row-gap">
+      <button class="btn btn-danger">Delete account</button>
+      <a class="btn btn-ghost" href="{% url 'mod_user' target.pk %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

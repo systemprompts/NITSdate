@@ -32,6 +32,8 @@
     {% endif %}
     {% endwith %}
   {% endif %}
+{% elif not conv.is_active %}
+  <div class="panel-note">This chat has ended.</div>
 {% elif conv.tier == "inbox" %}
   {% with s=priority %}
   {% if s.incoming %}

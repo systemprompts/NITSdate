@@ -11,8 +11,8 @@
     <a class="list-row" href="{% url 'mod_user' u.pk %}">
       {% if u.has_profile and u.profile.photo %}<span class="avatar avatar-md"><img src="{% url 'mod_profile_photo' u.pk %}" alt="" loading="lazy"></span>{% else %}<span class="avatar avatar-md" style="--h:{% hue u.pk %}">{{ u.email|slice:":1"|upper }}</span>{% endif %}
       <div class="grow">
-        <b>{% if u.has_profile %}{{ u.profile.name }}{% else %}{{ u.get_full_name|default:u.username }}{% endif %}</b>
-        <small class="muted">{{ u.email }}, shown as {{ u.alias }}</small>
+        <b>{% if not u.is_active %}Deleted account{% elif u.has_profile %}{{ u.profile.name }}{% else %}{{ u.get_full_name|default:u.username }}{% endif %}</b>
+        <small class="muted">{% if u.is_active %}{{ u.email }}, shown as {{ u.alias }}{% else %}removed by a moderator{% endif %}</small>
       </div>
       {% if u.has_profile and u.profile.is_minor %}<span class="pill pill-message">Under 18</span>{% endif %}
       {% if u.open_reports %}<span class="pill pill-priority">{{ u.open_reports }} open report{{ u.open_reports|pluralize }}</span>{% endif %}

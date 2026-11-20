@@ -23,8 +23,11 @@ from chat.models import Conversation, Message
 from feed.models import Comment, Post
 from matchmaking.models import MatchSession
 
-from .models import ModAction, ModeratorGrant, Report, Restriction
+from accounts.adapters import email_allowed, may_sign_in
+
+from .models import AllowedEmail, ModAction, ModeratorGrant, Report, Restriction
 from .permissions import is_admin, is_mod
+from .services import account_summary, delete_account, describe
 
 
 def mod_required(view):
@@ -320,7 +323,7 @@ def users(request):
 
 
 def _can_restrict(mod, target):
-    if mod.pk == target.pk:
+    if mod.pk == target.pk or not target.is_active:
         return False
     if is_admin(target):
         return False
@@ -407,6 +410,77 @@ def user_detail(request, user_id):
         "default_limit": settings.PROFILE_REQUESTS_PER_DAY,
         "target_is_mod": is_mod(target), "target_is_admin": is_admin(target),
         "actions": ModAction.objects.filter(target_user=target).select_related("mod")[:30],
+    })
+
+
+@mod_required
+def delete_user(request, user_id):
+    target = get_object_or_404(User.objects.select_related("profile"), pk=user_id)
+    if not _can_restrict(request.user, target):
+        raise Http404
+    summary = account_summary(target)
+    if request.method == "POST":
+        remove = request.POST.get("remove_content") == "on"
+        delete_account(target, remove_content=remove)
+        log(request.user, "deleted account",
+            ("Also deleted " if remove else "Kept ") + describe(summary) + ".", target)
+        messages.success(request, "Account deleted." + (" Their posts, comments and chats were deleted too."
+                                                        if remove else " Their posts, comments and chats were kept."))
+        return redirect("mod_user", user_id=target.pk)
+    return render(request, "moderation/delete_user.html", {
+        "target": target, "profile": get_profile(target), "summary": summary,
+    })
+
+
+@mod_required
+def allowlist(request):
+    me = request.user
+    domain = settings.ALLOWED_EMAIL_DOMAIN
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "add":
+            email = request.POST.get("email", "").strip().lower()
+            note = request.POST.get("note", "").strip()[:200]
+            try:
+                validate_email(email)
+            except ValidationError:
+                messages.error(request, "Enter a valid email address.")
+                return redirect("mod_allowlist")
+            if domain and email_allowed(email):
+                messages.info(request, f"{email} is a college address; it can always sign in.")
+                return redirect("mod_allowlist")
+            entry, created = AllowedEmail.objects.get_or_create(email=email, defaults={"note": note, "added_by": me})
+            if created:
+                log(me, "allowed email", email + (f" ({note})" if note else ""),
+                    User.objects.filter(email__iexact=email).first())
+                messages.success(request, f"{email} can now sign in.")
+            else:
+                messages.info(request, f"{email} is already allowed.")
+        elif action == "remove":
+            entry = get_object_or_404(AllowedEmail, pk=request.POST.get("entry"))
+            entry.delete()
+            log(me, "removed allowed email", entry.email, User.objects.filter(email__iexact=entry.email).first())
+            still = may_sign_in(entry.email)
+            messages.success(request, f"{entry.email} removed from the list."
+                             + ("" if still else " If they're signed in, they'll be signed out on their next click."))
+        else:
+            return HttpResponseBadRequest()
+        return redirect("mod_allowlist")
+
+    entries = list(AllowedEmail.objects.select_related("added_by"))
+    accounts = {u.email.lower(): u for u in User.objects.filter(email__in=[e.email for e in entries])
+                .select_related("profile")}
+    for e in entries:
+        e.account = accounts.get(e.email)
+    # signed-up accounts that the college-email rule now keeps out
+    blocked = []
+    if domain:
+        outside = (User.objects.filter(is_active=True).exclude(email="")
+                   .exclude(email__iendswith="@" + domain).exclude(email__iendswith="." + domain)
+                   .select_related("profile").order_by("-date_joined")[:200])
+        blocked = [u for u in outside if not may_sign_in(u.email)]
+    return render(request, "moderation/allowlist.html", {
+        "entries": entries, "blocked": blocked, "domain": domain,
     })
 
 

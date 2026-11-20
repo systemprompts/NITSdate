@@ -205,6 +205,8 @@ img { max-width: 100%; display: block; }
 .btn-gold:hover { background: color-mix(in srgb, var(--red) 86%, #000); color: var(--on-accent); border-color: transparent; }
 .btn-ghost { background: transparent; border-color: transparent; color: var(--muted); }
 .btn-ghost:hover { background: var(--paper-2); border-color: transparent; }
+.btn-danger { background: var(--red); border-color: var(--red); color: #fff; }
+.btn-danger:hover { filter: brightness(1.08); }
 .btn-danger-ghost { background: transparent; color: var(--red); border-color: transparent; }
 .btn-sm { padding: .48rem .8rem .42rem; font-size: .9rem; border-radius: 8px; }
 .btn-lg { padding: .9rem 1.4rem .82rem; font-size: 1.05rem; }

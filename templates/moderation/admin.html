@@ -37,7 +37,7 @@
   <h2>Recent moderator actions</h2>
   <ul class="plain-list log">
     {% for a in actions %}
-      <li><span><b>{{ a.mod.email|default:"?" }}</b> {{ a.action }}{% if a.target_user %}, <a href="{% url 'mod_user' a.target_user_id %}">{{ a.target_user.profile.name|default:a.target_user.email }}</a>{% endif %}{% if a.report_id %}, <a href="{% url 'mod_report' a.report_id %}">report #{{ a.report_id }}</a>{% endif %}{% if a.details %}<br><small class="muted">{{ a.details|linebreaksbr }}</small>{% endif %}</span><small class="muted">{{ a.created_at|naturaltime }}</small></li>
+      <li><span><b>{{ a.mod.email|default:"?" }}</b> {{ a.action }}{% if a.target_user %}, <a href="{% url 'mod_user' a.target_user_id %}">{% if a.target_user.is_active %}{{ a.target_user.profile.name|default:a.target_user.email }}{% else %}deleted account{% endif %}</a>{% endif %}{% if a.report_id %}, <a href="{% url 'mod_report' a.report_id %}">report #{{ a.report_id }}</a>{% endif %}{% if a.details %}<br><small class="muted">{{ a.details|linebreaksbr }}</small>{% endif %}</span><small class="muted">{{ a.created_at|naturaltime }}</small></li>
     {% empty %}<li class="muted">Nothing yet.</li>{% endfor %}
   </ul>
 </section>
