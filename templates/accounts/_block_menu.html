@@ -30,7 +30,7 @@ never put the user's id in a chat page, it would un-blind matchmaking); optional
       </button>
     </form>
     <a class="menu-item" href="{% if conv_id %}{% url 'report_chat' conv_id %}{% else %}{% url 'report_profile' target.pk %}{% endif %}?next={{ next|urlencode }}">
-      {% icon 'flag' 17 %}<span><b>Report</b><small>Tell the moderators. They won't know it was you.</small></span>
+      {% icon 'flag' 17 %}<span><b>Report</b><small>Tell the moderators. The person won't know it was you.</small></span>
     </a>
   </div>
 </details>
