@@ -233,7 +233,7 @@ def set_visibility(request):
     if profile.profile_visible:
         messages.success(request, "Your profile is unlocked. Public fields are visible to everyone.")
     else:
-        messages.success(request, "Your profile is locked. Only connections can see your details.")
+        messages.success(request, "Your profile is locked. Only connections can see your name and details.")
     return redirect("my_profile")
 
 

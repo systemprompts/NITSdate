@@ -105,12 +105,16 @@ class FlowTests(TestCase):
         p.profile_visible = False  # locked: public fields hidden from strangers, not from connections
         self.assertFalse(field_visible(p, "bio", STRANGER))
         self.assertTrue(field_visible(p, "bio", CONNECTION))
-        self.assertTrue(field_visible(p, "name", STRANGER))  # name is never hidden by the lock
+        self.assertFalse(field_visible(p, "name", STRANGER))  # strangers see the randomized name
+        self.assertTrue(field_visible(p, "name", CONNECTION))
         p.save()
+        self.assertEqual(display_name(self.a, self.b), self.a.alias)
 
         self.login(self.b)
         html = self.client.get(reverse("profile", args=[self.a.pk])).content.decode()
         self.assertNotIn("hello", html)
+        self.assertNotIn("Aarav Test", html)
+        self.assertIn(self.a.alias, html)
         self.assertIn("Locked profile", html)
         self.assertIn("Edit history", html)  # (i) buttons still visible
 

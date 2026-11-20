@@ -8,8 +8,8 @@ A field is visible when:
   * viewer is the owner, or
   * privacy == connections and they are connected, or
   * privacy == public and (they are connected, or the profile isn't locked).
-The name is never hidden by the profile lock: when it is hidden by its own
-privacy setting the randomized alias is shown instead.
+The name follows the same rules, but is never left blank: whenever it is hidden
+(its own privacy setting, or a locked profile) the randomized alias is shown instead.
 """
 from django.db.models import Q
 
@@ -111,7 +111,7 @@ def field_visible(profile, key, rel):
         return False
     if privacy == CONNECTIONS:
         return rel == CONNECTION
-    if rel == CONNECTION or key == "name":
+    if rel == CONNECTION:
         return True
     return profile.profile_visible
 

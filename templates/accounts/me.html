@@ -33,7 +33,7 @@
       <h3>{% if profile.profile_visible %}Your profile is open{% else %}Your profile is locked{% endif %}</h3>
       <p>
         {% if profile.profile_visible %}Anyone can read the answers you've set to Public.
-        {% else %}Only connections can read your answers. Others see your name (or randomized name) and the {% icon 'info' 13 %} edit counts.{% endif %}
+        {% else %}Only connections can see your name and answers. Everyone else sees <b class="hand">{{ user.alias }}</b> and the {% icon 'info' 13 %} edit counts.{% endif %}
       </p>
     </div>
     <form method="post" action="{% url 'set_visibility' %}">
