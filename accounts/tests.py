@@ -716,7 +716,7 @@ class DeleteOwnAccountTests(TestCase):
 
     def test_page_and_wrong_phrase(self):
         resp = self.client.get(reverse("delete_my_account"))
-        self.assertContains(resp, "I want to stay single")
+        self.assertContains(resp, 'type <b>"I want to stay single"</b>', html=False)
         self.client.post(reverse("delete_my_account"), {"phrase": "I want to stay"})
         self.me.refresh_from_db()
         self.assertTrue(self.me.is_active)

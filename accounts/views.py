@@ -248,9 +248,9 @@ def delete_my_account(request):
         messages.error(request, "Admin accounts can't be deleted from here.")
         return redirect("my_profile")
     if request.method == "POST":
-        typed = " ".join(request.POST.get("phrase", "").split())
+        typed = " ".join(request.POST.get("phrase", "").split()).strip('"“”')   # the quotes are optional
         if typed.casefold() != STAY_SINGLE.casefold():
-            messages.error(request, f"Type “{STAY_SINGLE}” to confirm.")
+            messages.error(request, f'Type "{STAY_SINGLE}" to confirm.')
             return redirect("delete_my_account")
         delete_account(me, remove_content=True)
         logout(request)

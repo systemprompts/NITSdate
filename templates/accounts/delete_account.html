@@ -18,7 +18,7 @@
 
   <form method="post" class="stack">
     {% csrf_token %}
-    <label class="field"><span class="label">To confirm, type <b>{{ phrase }}</b></span>
+    <label class="field"><span class="label">To confirm, type <b>"{{ phrase }}"</b></span>
       <input type="text" name="phrase" required autocomplete="off" autocapitalize="off" spellcheck="false"
              data-phrase="{{ phrase|lower }}" aria-label="Type {{ phrase }} to confirm"></label>
     <div class="row-gap">
