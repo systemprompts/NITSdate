@@ -25,15 +25,17 @@
           <b class="blind">{{ r.blind }}</b> <span class="pill pill-match">{% icon 'zap' 12 %} matchmaking</span>
           <small class="muted">Wants to connect, {{ r.created_at|naturaltime }}</small>
         </div>
-        <a class="btn btn-sm" href="{% url 'chat_room' r.conversation_id %}">Open chat</a>
+        <div class="row-actions"><a class="btn btn-sm" href="{% url 'chat_room' r.conversation_id %}">Open chat</a></div>
       {% else %}
         <a href="{% url 'profile' r.from_user.pk %}">{% avatar r.from_user user "md" %}</a>
         <div class="grow">
           <a href="{% url 'profile' r.from_user.pk %}"><b>{{ r.from_user|name_html:user }}</b></a>
           <small class="muted">Sent from your profile, {{ r.created_at|naturaltime }}</small>
         </div>
-        <form method="post" action="{% url 'request_action' r.pk 'accept' %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Accept</button></form>
-        <form method="post" action="{% url 'request_action' r.pk 'decline' %}">{% csrf_token %}<button class="btn btn-sm btn-ghost">Decline</button></form>
+        <div class="row-actions">
+          <form method="post" action="{% url 'request_action' r.pk 'accept' %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Accept</button></form>
+          <form method="post" action="{% url 'request_action' r.pk 'decline' %}">{% csrf_token %}<button class="btn btn-sm btn-ghost">Decline</button></form>
+        </div>
       {% endif %}
     </div>
   {% empty %}
@@ -46,7 +48,6 @@
       {% if r.source == "match" %}
         {% avatar r.to_user user "md" r.blind %}
         <div class="grow"><b class="blind">{{ r.blind }}</b> <span class="pill pill-match">{% icon 'zap' 12 %} matchmaking</span><small class="muted">Waiting for them, sent {{ r.created_at|naturaltime }}</small></div>
-        <a class="btn btn-sm" href="{% url 'chat_room' r.conversation_id %}">Open chat</a>
       {% else %}
         <a href="{% url 'profile' r.to_user.pk %}">{% avatar r.to_user user "md" %}</a>
         <div class="grow">
@@ -54,7 +55,10 @@
           <small class="muted">Sent {{ r.created_at|naturaltime }}</small>
         </div>
       {% endif %}
-      <form method="post" action="{% url 'request_action' r.pk 'cancel' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-sm btn-ghost">Cancel</button></form>
+      <div class="row-actions">
+        {% if r.source == "match" %}<a class="btn btn-sm" href="{% url 'chat_room' r.conversation_id %}">Open chat</a>{% endif %}
+        <form method="post" action="{% url 'request_action' r.pk 'cancel' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-sm btn-ghost">Cancel</button></form>
+      </div>
     </div>
   {% empty %}
     <p class="empty-state">You have no pending sent requests.</p>
@@ -74,12 +78,14 @@
       {% endif %}
           <small class="muted">{% if b.block.messages and b.block.profile %}Messages blocked, profile hidden from them{% elif b.block.messages %}Messages blocked{% else %}Profile hidden from them{% endif %}</small>
         </div>
+      <div class="row-actions">
       {% if b.block.messages %}
         <form method="post" action="{% if b.blind %}{% url 'block_in_chat' b.block.conversation_id %}{% else %}{% url 'block_user' b.user.pk %}{% endif %}">{% csrf_token %}<input type="hidden" name="kind" value="messages"><input type="hidden" name="on" value="0"><input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-sm">Unblock messages</button></form>
       {% endif %}
       {% if b.block.profile %}
         <form method="post" action="{% if b.blind %}{% url 'block_in_chat' b.block.conversation_id %}{% else %}{% url 'block_user' b.user.pk %}{% endif %}">{% csrf_token %}<input type="hidden" name="kind" value="profile"><input type="hidden" name="on" value="0"><input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-sm">Show profile</button></form>
       {% endif %}
+      </div>
     </div>
   {% empty %}
     <p class="empty-state">You haven't blocked anyone. You can block someone from their profile or from a chat.</p>
@@ -93,8 +99,10 @@
         <a href="{% url 'profile' c.user.pk %}"><b>{{ c.user|name_html:user }}</b></a>
         <small class="muted">Connected {{ c.since|naturaltime }}</small>
       </div>
-      {% if c.conversation.tier == "priority" %}<span class="pill pill-priority">{% icon 'star' 12 %} Priority</span>{% endif %}
-      {% if c.conversation %}<a class="btn btn-sm" href="{% url 'chat_room' c.conversation.pk %}">{% icon 'chat' 15 %} Message</a>{% endif %}
+      {% if c.conversation %}<div class="row-actions">
+        {% if c.conversation.tier == "priority" %}<span class="pill pill-priority">{% icon 'star' 12 %} Priority</span>{% endif %}
+        <a class="btn btn-sm" href="{% url 'chat_room' c.conversation.pk %}">{% icon 'chat' 15 %} Message</a>
+      </div>{% endif %}
     </div>
   {% empty %}
     <p class="empty-state">No connections yet. Try <a href="{% url 'match' %}">matchmaking</a> or connect from someone's profile.</p>

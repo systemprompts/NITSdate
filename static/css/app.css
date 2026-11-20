@@ -433,6 +433,9 @@ fieldset.filter { border: 0; padding: 0; margin: 0 0 .5rem; min-width: 0; }
 .list-row { flex-wrap: wrap; row-gap: .5rem; }
 .list-row > .grow { flex: 1 1 10rem; }
 .list-row > .grow + * { margin-left: auto; }
+.row-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: flex-end; }
+.row-actions:empty { display: none; }
+.row-actions form { margin: 0; }
 .convo-row:hover { background: var(--paper-2); color: inherit; }
 .convo-row.ended { opacity: .55; }
 .convo-top { display: flex; justify-content: space-between; gap: .5rem; align-items: baseline; }

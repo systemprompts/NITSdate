@@ -14,9 +14,11 @@
         <b>{% if not u.is_active %}Deleted account{% elif u.has_profile %}{{ u.profile.name }}{% else %}{{ u.get_full_name|default:u.username }}{% endif %}</b>
         <small class="muted">{% if u.is_active %}{{ u.email }}, shown as {{ u.alias }}{% else %}removed by a moderator{% endif %}</small>
       </div>
-      {% if u.has_profile and u.profile.is_minor %}<span class="pill pill-message">Under 18</span>{% endif %}
-      {% if u.open_reports %}<span class="pill pill-priority">{{ u.open_reports }} open report{{ u.open_reports|pluralize }}</span>{% endif %}
-      {% if u.restriction.is_active %}<span class="pill">{% icon 'shield' 12 %} limited</span>{% endif %}
+      <span class="row-actions">
+        {% if u.has_profile and u.profile.is_minor %}<span class="pill pill-message">Under 18</span>{% endif %}
+        {% if u.open_reports %}<span class="pill pill-priority">{{ u.open_reports }} open report{{ u.open_reports|pluralize }}</span>{% endif %}
+        {% if u.restriction.is_active %}<span class="pill">{% icon 'shield' 12 %} limited</span>{% endif %}
+      </span>
     </a>
   {% empty %}
     <p class="empty-state">No users match “{{ q }}”.</p>
