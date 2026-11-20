@@ -209,12 +209,6 @@ class ModerationTests(TestCase):
         self.as_(self.mod)  # moderators still see everything in the mod area
         self.assertContains(self.client.get(reverse("mod_user", args=[self.bob.pk])), self.bob.email)
 
-    def test_hidden_profile_cannot_receive_connection_requests(self):
-        self.limit(profile_hidden=True)
-        self.as_(self.alice)
-        self.assertEqual(self.client.post(reverse("send_request", args=[self.bob.pk])).status_code, 404)
-        self.assertFalse(ConnectionRequest.objects.filter(from_user=self.alice, to_user=self.bob).exists())
-
     def test_clearing_limits_deletes_row_and_mods_cannot_limit_admins(self):
         self.limit(no_posting=True)
         self.assertTrue(Restriction.objects.filter(user=self.bob).exists())

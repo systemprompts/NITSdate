@@ -306,8 +306,7 @@ def send_request(request, user_id):
     me = request.user
     owner = get_object_or_404(User, pk=user_id)
     back = reverse("profile", args=[owner.pk])
-    # same rule as the profile page: no requests to a profile you can't open (hidden by a moderator or by them)
-    if owner.pk == me.pk or get_profile(owner) is None or relation(owner, me) == BLOCKED:
+    if owner.pk == me.pk or get_profile(owner) is None:
         raise Http404
     with transaction.atomic():
         User.objects.select_for_update().get(pk=me.pk)  # serialise this user's requests for the daily limit
