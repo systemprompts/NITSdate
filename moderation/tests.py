@@ -437,6 +437,18 @@ class AccountToolsTests(TestCase):
         Message.objects.create(conversation=conv, sender=self.bob, stage=conv.tier, text="bob says hi")
         return post, alice_post, bob_comment, reply, conv
 
+    def test_mods_see_who_deleted_an_account(self):
+        self.client.post(reverse("mod_delete_user", args=[self.bob.pk]))          # a moderator deletes bob
+        alice_client = Client()
+        alice_client.force_login(self.alice)
+        alice_client.post(reverse("delete_my_account"), {"phrase": "I want to stay single"})   # alice leaves
+        listing = self.client.get(reverse("mod_users")).content.decode()
+        self.assertEqual(listing.count("removed by a moderator"), 1)
+        self.assertEqual(listing.count("deleted by its owner"), 1)
+        self.assertContains(self.client.get(reverse("mod_user", args=[self.bob.pk])), "deleted this account")
+        self.assertContains(self.client.get(reverse("mod_user", args=[self.alice.pk])),
+                            "The owner deleted this account themselves.")
+
     def test_delete_keeping_content(self):
         post, alice_post, bob_comment, reply, conv = self._content()
         bob_client = Client()

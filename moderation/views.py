@@ -8,7 +8,7 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 import datetime
 
-from django.db.models import BooleanField, Case, Count, F, Q, Value, When
+from django.db.models import BooleanField, Case, Count, Exists, F, OuterRef, Q, Value, When
 from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -317,7 +317,8 @@ def users(request):
     if q:
         qs = qs.filter(Q(email__icontains=q) | Q(alias__icontains=q) | Q(username__icontains=q)
                        | Q(profile__name__icontains=q))
-    qs = qs.annotate(open_reports=Count("reports_received", filter=Q(reports_received__status=Report.OPEN)))
+    qs = qs.annotate(open_reports=Count("reports_received", filter=Q(reports_received__status=Report.OPEN)),
+                     removed_by_mod=Exists(_mod_deletions().filter(target_user=OuterRef("pk"))))
     page = Paginator(qs, 40).get_page(request.GET.get("page"))
     return render(request, "moderation/users.html", {"page": page, "q": q})
 
@@ -328,6 +329,11 @@ def _can_restrict(mod, target):
     if is_admin(target):
         return False
     return is_admin(mod) or not is_mod(target)
+
+
+def _mod_deletions():
+    """A moderator deleting an account is always logged; deleting your own account never is."""
+    return ModAction.objects.filter(action="deleted account")
 
 
 @mod_required
@@ -394,6 +400,7 @@ def user_detail(request, user_id):
     conns = conns_qs.order_by("-created_at")[:50]
     return render(request, "moderation/user_detail.html", {
         "target": target, "profile": profile,
+        "deletion": None if target.is_active else _mod_deletions().filter(target_user=target).select_related("mod").first(),
         "rows": profile_rows(profile, SELF) if profile else [],
         "privacy_labels": PRIVACY_LABELS,
         "photos": GalleryPhoto.objects.filter(user=target),

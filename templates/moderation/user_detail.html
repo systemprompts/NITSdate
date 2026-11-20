@@ -96,7 +96,7 @@
     </div>
   </form>
   {% else %}
-    <p class="muted">{% if not target.is_active %}This account was deleted.{% elif target.pk == user.pk %}You can't limit your own account.{% elif target_is_admin %}Admins can't be limited.{% else %}Only an admin can limit another moderator.{% endif %}</p>
+    <p class="muted">{% if not target.is_active %}{% if deletion %}A moderator ({{ deletion.mod.email|default:"since removed" }}) deleted this account {{ deletion.created_at|naturaltime }}.{% else %}The owner deleted this account themselves.{% endif %}{% elif target.pk == user.pk %}You can't limit your own account.{% elif target_is_admin %}Admins can't be limited.{% else %}Only an admin can limit another moderator.{% endif %}</p>
   {% endif %}
   {% if can_restrict %}
   <p class="row-gap"><a class="btn btn-sm btn-danger-ghost" href="{% url 'mod_delete_user' target.pk %}">Delete account…</a>
