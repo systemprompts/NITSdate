@@ -15,11 +15,11 @@
     <div class="grow">
       <h1>{{ profile.name }}&nbsp;{% gender_mark profile.gender %}</h1>
       <p class="muted">Where your name is hidden, people see <b class="hand">{{ user.alias }}</b>.</p>
-      <div class="row-gap">
-        <label for="avatar-input" class="btn btn-sm">{% icon 'camera' 15 %} {% if profile.photo %}Change photo{% else %}Add profile photo{% endif %}</label>
-        <a class="btn btn-sm" href="{% url 'profile' user.pk %}?as=public">{% icon 'eye' 15 %} View as a stranger</a>
-        <a class="btn btn-sm" href="{% url 'profile' user.pk %}?as=connection">{% icon 'users' 15 %} View as a connection</a>
-      </div>
+    </div>
+    <div class="row-gap head-actions">
+      <label for="avatar-input" class="btn btn-sm">{% icon 'camera' 15 %} {% if profile.photo %}Change photo{% else %}Add profile photo{% endif %}</label>
+      <a class="btn btn-sm" href="{% url 'profile' user.pk %}?as=public">{% icon 'eye' 15 %} View as a stranger</a>
+      <a class="btn btn-sm" href="{% url 'profile' user.pk %}?as=connection">{% icon 'users' 15 %} View as a connection</a>
     </div>
   </section>
 

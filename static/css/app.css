@@ -330,6 +330,8 @@ fieldset.filter { border: 0; padding: 0; margin: 0 0 .5rem; min-width: 0; }
 .profile-head { display: flex; gap: 1.1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1.25rem; }
 .profile-head h1 { margin-bottom: .1rem; font-size: clamp(2rem, 5vw, 2.7rem); }
 .profile-head p { margin-bottom: .5rem; }
+.profile-head .head-actions { flex-basis: 100%; }
+@media (min-width: 601px) { .profile-head .head-actions { margin: -.4rem 0 0 calc(92px + 1.1rem); } }
 .profile-actions { display: flex; flex-direction: column; align-items: flex-end; gap: .35rem; }
 .profile-actions form { margin: 0; }
 @media (max-width: 600px) {
@@ -345,6 +347,11 @@ fieldset.filter { border: 0; padding: 0; margin: 0 0 .5rem; min-width: 0; }
 .lock-card h3 { margin: 0; }
 .lock-icon { color: var(--accent); display: grid; }
 .lock-card.is-locked .lock-icon { color: var(--red); }
+@media (max-width: 600px) {   /* phones: text at full width, button underneath */
+  .lock-card { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .55rem .75rem; }
+  .lock-card .lock-icon { margin-top: .1rem; }
+  .lock-card form { grid-column: 2; }
+}
 
 .slam { padding: 0; }
 .slam-section + .slam-section { border-top: 1.5px solid var(--rule); }
@@ -421,6 +428,11 @@ fieldset.filter { border: 0; padding: 0; margin: 0 0 .5rem; min-width: 0; }
 .list-row:last-child, .convo-row:last-child { border-bottom: 0; }
 .list-row form { margin: 0; }
 .list-row small { display: block; }
+/* when the text and the buttons don't both fit, the buttons move to their own line instead of
+   squeezing the text into a narrow column */
+.list-row { flex-wrap: wrap; row-gap: .5rem; }
+.list-row > .grow { flex: 1 1 10rem; }
+.list-row > .grow + * { margin-left: auto; }
 .convo-row:hover { background: var(--paper-2); color: inherit; }
 .convo-row.ended { opacity: .55; }
 .convo-top { display: flex; justify-content: space-between; gap: .5rem; align-items: baseline; }
