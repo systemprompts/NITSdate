@@ -332,6 +332,10 @@ fieldset.filter { border: 0; padding: 0; margin: 0 0 .5rem; min-width: 0; }
 .profile-head p { margin-bottom: .5rem; }
 .profile-head .head-actions { flex-basis: 100%; }
 @media (min-width: 601px) { .profile-head .head-actions { margin: -.4rem 0 0 calc(92px + 1.1rem); } }
+@media (max-width: 600px) {   /* two buttons per row even on 360px phones */
+  .profile-head .head-actions { gap: .45rem; }
+  .profile-head .head-actions .btn { padding-left: .62rem; padding-right: .62rem; }
+}
 .profile-actions { display: flex; flex-direction: column; align-items: flex-end; gap: .35rem; }
 .profile-actions form { margin: 0; }
 @media (max-width: 600px) {
