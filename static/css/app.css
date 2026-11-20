@@ -186,7 +186,7 @@ img { max-width: 100%; display: block; }
   .mainnav a { flex-direction: column; gap: 0; font-size: .75rem; padding: .3rem .45rem; }
   .mainnav a .badge { position: absolute; top: -2px; right: 2px; }
   .mainnav a .dot { position: absolute; top: 5px; right: 10px; }
-  .topbar .theme-toggle { margin-left: auto; }
+  .topbar .notif-btn { margin-left: auto; }
 }
 
 /* ---------- buttons & inputs ---------- */
@@ -219,6 +219,13 @@ img { max-width: 100%; display: block; }
 }
 .icon-btn:hover { background: var(--paper-2); color: var(--ink); }
 .icon-btn.sm { width: 32px; height: 32px; }
+.notif-btn { position: relative; margin-left: .4rem; }
+.notif-btn.active { color: var(--hl-ink); }
+.notif-btn .badge { position: absolute; top: -3px; right: -5px; }
+.notif.unread { background: color-mix(in srgb, var(--hl) 14%, transparent); }
+.notif .notif-icon { color: var(--muted); flex: none; }
+.notif .grow > span { display: block; }
+.notif > .dot { background: var(--red); }
 .icon-btn::-webkit-details-marker { display: none; }
 .link { background: none; border: 0; padding: 0; color: var(--muted); font: 600 .92rem var(--ui); cursor: pointer; display: inline-flex; gap: .3rem; align-items: center; }
 .link:hover { color: var(--accent); }

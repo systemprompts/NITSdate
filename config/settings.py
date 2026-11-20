@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "chat",
     "matchmaking",
     "moderation",
+    "notifications",
 ]
 
 MIDDLEWARE = [

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Notifications</h1></div>
+
+<section class="sheet list-card">
+  {% for it in items %}
+    <a class="list-row notif {% if it.unread %}unread{% endif %}"
+       href="{% url 'post_detail' it.post.pk %}{% if it.comment %}#c{{ it.comment.pk }}{% endif %}">
+      <span class="notif-icon">{% if it.kind == "post_upvote" or it.kind == "comment_upvote" %}{% icon 'arrow-up' 18 %}{% else %}{% icon 'comment' 18 %}{% endif %}</span>
+      <div class="grow">
+        <span>
+          {% if it.kind == "post_upvote" %}{% if it.count > 1 %}{{ it.count }} people{% else %}Someone{% endif %} upvoted your post
+          {% elif it.kind == "comment_upvote" %}{% if it.count > 1 %}{{ it.count }} people{% else %}Someone{% endif %} upvoted your comment on
+          {% elif it.kind == "comment" %}<b>{{ it.actor|name_html:user }}</b> commented on your post
+          {% else %}<b>{{ it.actor|name_html:user }}</b> replied to your comment on{% endif %}
+          <b>“{{ it.post.title|truncatechars:60 }}”</b>
+        </span>
+        {% if it.comment %}<small class="muted">{% if it.comment.removed %}(removed by a moderator){% elif it.comment.is_deleted %}(deleted){% else %}{{ it.comment.body|truncatechars:90 }}{% endif %}</small>{% endif %}
+        <small class="muted">{{ it.at|naturaltime }}</small>
+      </div>
+      {% if it.unread %}<i class="dot" title="New"></i>{% endif %}
+    </a>
+  {% empty %}
+    <p class="empty-state">Nothing yet. When someone upvotes, comments on or replies to what you post, it shows up here.</p>
+  {% endfor %}
+</section>
+
+<section class="sheet narrow-wide" style="margin-top:1.5rem">
+  <h2>What to notify me about</h2>
+  <form method="post" action="{% url 'notification_settings' %}" class="stack">
+    {% csrf_token %}
+    {% for s in settings_rows %}
+      <label class="check"><input type="checkbox" name="{{ s.key }}" {% if s.on %}checked{% endif %}>
+        <span><b>{{ s.label }}</b><small class="muted">{{ s.help }}</small></span></label>
+    {% endfor %}
+    <div><button class="btn btn-primary">Save</button></div>
+  </form>
+</section>
+{% endblock %}

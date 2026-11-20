@@ -42,5 +42,6 @@ urlpatterns = [
     path("", include("feed.urls")),
     path("messages/", include("chat.urls")),
     path("match/", include("matchmaking.urls")),
+    path("notifications/", include("notifications.urls")),
     path("", include("moderation.urls")),
 ]

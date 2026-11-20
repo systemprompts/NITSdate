@@ -66,10 +66,11 @@
      every 8 seconds while the page is visible, and right away when you come back to the tab. On the
      Messages page the list itself is refreshed when something changed. ---- */
   const mainnav = document.querySelector(".mainnav[data-badges-url]");
+  const topbar = document.querySelector(".topbar");
   if (mainnav) {
     const baseTitle = document.title.replace(/^\(\d+\)\s*/, "");
     const setBadge = (key, n) => {
-      const link = mainnav.querySelector(`[data-badge="${key}"]`);
+      const link = topbar.querySelector(`[data-badge="${key}"]`);
       if (!link || n === undefined) return;
       let b = link.querySelector(".badge");
       if (n > 0) {
@@ -104,8 +105,9 @@
           setBadge("messages", d.messages);
           setBadge("requests", d.requests);
           setBadge("reports", d.reports);
+          setBadge("notifications", d.notifications);
           setDot(d.searching);
-          const waiting = d.messages + d.requests;
+          const waiting = d.messages + d.requests + (d.notifications || 0);
           document.title = (waiting ? `(${waiting}) ` : "") + baseTitle;
           if (live && d.inbox !== live.dataset.version) await reloadInbox();
         }

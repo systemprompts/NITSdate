@@ -15,6 +15,7 @@ from chat.models import Conversation, Message, PriorityRequest
 from chat.services import system_message
 from feed.models import Comment, Post
 from matchmaking.models import MatchSession
+from notifications.models import Notification
 
 from .models import AllowedEmail, ModeratorGrant, Restriction
 
@@ -80,6 +81,7 @@ def delete_account(user, *, remove_content=False):
         Block.objects.filter(Q(blocker=user) | Q(blocked=user)).delete()
         MatchSession.objects.filter(user=user).delete()
         Restriction.objects.filter(user=user).delete()
+        Notification.objects.filter(Q(recipient=user) | Q(actor=user)).delete()
         if user.email:   # a deleted account mustn't keep moderator or allowlist access for its address
             ModeratorGrant.objects.filter(email__iexact=user.email).delete()
             AllowedEmail.objects.filter(email__iexact=user.email).delete()

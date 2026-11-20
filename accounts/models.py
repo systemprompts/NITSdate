@@ -34,6 +34,10 @@ class User(AbstractUser):
     # when they were last on the site (updated at most once a minute). Matchmaking uses it to pair
     # people who are around first; moderators see it on the user's mod page. Never shown to students.
     last_seen = models.DateTimeField(null=True, blank=True, editable=False)
+    # which notifications they want (set on the notifications page)
+    notify_upvotes = models.BooleanField(default=True)
+    notify_comments = models.BooleanField(default=True)
+    notify_replies = models.BooleanField(default=True)
 
     def save(self, *args, **kwargs):
         if not self.alias:

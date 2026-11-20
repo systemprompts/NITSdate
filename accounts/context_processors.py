@@ -10,6 +10,7 @@ def badge_counts(user):
     from matchmaking.models import MatchSession
     from moderation.models import Report
     from moderation.permissions import is_mod
+    from notifications.services import unread_count as unread_notifications
 
     tiers = {"match": 0, "inbox": 0, "priority": 0}
     for tier, n in unread_by_conversation(user).values():
@@ -17,8 +18,9 @@ def badge_counts(user):
     counts = {
         "tiers": tiers,
         "messages": sum(tiers.values()),
-        "requests": ConnectionRequest.objects.filter(to_user=user, status=ConnectionRequest.PENDING,
-                                                     source=ConnectionRequest.SOURCE_PROFILE).count(),
+        # every request waiting for an answer, from a profile or a matchmaking chat (same as People → Requests)
+        "requests": ConnectionRequest.objects.filter(to_user=user, status=ConnectionRequest.PENDING).count(),
+        "notifications": unread_notifications(user),
         "searching": MatchSession.objects.active().filter(user=user).exists(),
     }
     if is_mod(user):
@@ -38,7 +40,8 @@ def nav(request):
         "nav_unread": counts["tiers"],
         "nav_unread_total": counts["messages"],
         "nav_requests": counts["requests"],
-        "nav_waiting": counts["messages"] + counts["requests"],
+        "nav_notifications": counts["notifications"],
+        "nav_waiting": counts["messages"] + counts["requests"] + counts["notifications"],
         "nav_searching": counts["searching"],
     })
     limits = restriction_for(user)

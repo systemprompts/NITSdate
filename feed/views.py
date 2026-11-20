@@ -13,6 +13,8 @@ from django.views.decorators.http import require_POST
 
 from accounts.images import process_image, serve_image
 from moderation.permissions import restriction_for
+from notifications.models import Notification
+from notifications.services import notify, withdraw_upvote
 
 from .models import Comment, CommentVote, Post, PostVote
 
@@ -212,6 +214,10 @@ def vote_post(request, pk):
     if value not in (1, -1):
         return HttpResponseBadRequest()
     score, mine = _apply_vote(PostVote, "post", post, request.user, value)
+    if mine == 1:
+        notify(post.author, request.user, Notification.POST_UPVOTE, post)
+    else:
+        withdraw_upvote(post.author, request.user, Notification.POST_UPVOTE, post)
     return _vote_response(request, score, mine, reverse("post_detail", args=[pk]))
 
 
@@ -228,6 +234,10 @@ def vote_comment(request, pk):
     if value not in (1, -1):
         return HttpResponseBadRequest()
     score, mine = _apply_vote(CommentVote, "comment", comment, request.user, value)
+    if mine == 1:
+        notify(comment.author, request.user, Notification.COMMENT_UPVOTE, comment.post, comment)
+    else:
+        withdraw_upvote(comment.author, request.user, Notification.COMMENT_UPVOTE, comment.post, comment)
     return _vote_response(request, score, mine, reverse("post_detail", args=[comment.post_id]) + f"#c{pk}")
 
 
@@ -249,6 +259,10 @@ def add_comment(request, pk):
         return redirect("post_detail", pk=pk)
     comment = Comment.objects.create(post=post, author=request.user, parent=parent, body=body)
     Post.objects.filter(pk=pk).update(comment_count=F("comment_count") + 1)
+    if parent is not None:
+        notify(parent.author, request.user, Notification.REPLY, post, comment)
+    if parent is None or parent.author_id != post.author_id:   # the post's author hears once, not twice
+        notify(post.author, request.user, Notification.COMMENT, post, comment)
     return redirect(reverse("post_detail", args=[pk]) + f"#c{comment.pk}")
 
 
