@@ -1,9 +1,11 @@
+import datetime
 import re
 
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
-from accounts.models import Connection, ConnectionRequest
+from accounts.models import Connection, ConnectionRequest, User
 from accounts.tests import POST_FORM_RE, make_user
 from chat.models import Conversation, Message
 from chat.services import connect_users, create_match_conversation
@@ -436,6 +438,21 @@ class AccountToolsTests(TestCase):
         conv = connect_users(self.alice, self.bob)
         Message.objects.create(conversation=conv, sender=self.bob, stage=conv.tier, text="bob says hi")
         return post, alice_post, bob_comment, reply, conv
+
+    def test_mods_see_last_online_students_dont(self):
+        page = self.client.get(reverse("mod_user", args=[self.bob.pk]))
+        self.assertContains(page, "Not since 20 Nov 2026")
+        bob_client = Client()
+        bob_client.force_login(self.bob)
+        bob_client.get(reverse("home"))                                   # bob is on the site
+        self.assertContains(self.client.get(reverse("mod_user", args=[self.bob.pk])), "Online now")
+        User.objects.filter(pk=self.bob.pk).update(last_seen=timezone.now() - datetime.timedelta(hours=3))
+        self.assertContains(self.client.get(reverse("mod_user", args=[self.bob.pk])), "3\xa0hours ago")
+        alice_client = Client()
+        alice_client.force_login(self.alice)
+        profile = alice_client.get(reverse("profile", args=[self.bob.pk])).content.decode()
+        self.assertNotIn("Online now", profile)
+        self.assertNotIn("hours ago", profile)
 
     def test_mods_see_who_deleted_an_account(self):
         self.client.post(reverse("mod_delete_user", args=[self.bob.pk]))          # a moderator deletes bob

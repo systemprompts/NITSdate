@@ -408,6 +408,8 @@ def user_detail(request, user_id):
         "comments": Comment.objects.filter(author=target).select_related("post").order_by("-created_at")[:20],
         "connections": [c.other(target) for c in conns],
         "connection_count": conns_qs.count(),
+        # last_seen is noted at most once a minute and open pages check in every 8 s
+        "online_now": bool(target.last_seen and timezone.now() - target.last_seen < datetime.timedelta(minutes=2)),
         "blocks_made": Block.objects.filter(blocker=target).count(),
         "blocks_received": Block.objects.filter(blocked=target).count(),
         "match_sessions": MatchSession.objects.filter(user=target).count(),

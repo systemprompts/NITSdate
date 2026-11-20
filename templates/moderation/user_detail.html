@@ -38,7 +38,8 @@
     <dt>Randomized name</dt><dd>{{ target.alias }}</dd>
     <dt>Username</dt><dd>{{ target.username }}</dd>
     <dt>Joined</dt><dd>{{ target.date_joined }}</dd>
-    <dt>Last login</dt><dd>{{ target.last_login|default:"never" }}</dd>
+    <dt>Last online</dt><dd>{% if online_now %}<b>Online now</b>{% elif target.last_seen %}{{ target.last_seen|naturaltime }} <small class="muted">({{ target.last_seen }})</small>{% else %}Not since 20 Nov 2026 <small class="muted">(when this started being recorded)</small>{% endif %}</dd>
+    <dt>Last sign-in</dt><dd>{{ target.last_login|default:"never" }}</dd>
     <dt>Activity</dt><dd>{{ connection_count }} connection{{ connection_count|pluralize }}, {{ match_sessions }} matchmaking search{{ match_sessions|pluralize:"es" }}, blocked {{ blocks_made }} {{ blocks_made|pluralize:"person,people" }}, blocked by {{ blocks_received }}</dd>
   </dl>
 </section>
