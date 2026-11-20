@@ -186,6 +186,7 @@ def edit_field(request, key):
         messages.error(request, exc.messages[0])
         return redirect(back)
 
+    was_empty = not profile.photo if field.kind == "image" else getattr(profile, key) in ("", None)
     if field.kind == "image":
         old_name = profile.photo.name if profile.photo else ""
         if value == "":
@@ -201,9 +202,9 @@ def edit_field(request, key):
         setattr(profile, key, value)
 
     if changed:
-        profile.record_edit(key)  # privacy changes never reach here, so they don't count
+        counted = profile.note_change(key, was_empty)  # privacy changes never reach here, so they don't count
         profile.save()
-        messages.success(request, f"{field.label} updated.")
+        messages.success(request, f"{field.label} {'updated' if counted else 'added'}.")
     else:
         messages.info(request, "Nothing changed.")
     return redirect(back)
@@ -570,7 +571,7 @@ def gallery_make_avatar(request, pk):
     profile.photo.save(f"{uuid.uuid4().hex}.jpg", ContentFile(data), save=False)
     if old_name:
         profile.photo.storage.delete(old_name)
-    profile.record_edit("photo")
+    profile.note_change("photo", was_empty=not old_name)
     profile.save()
     messages.success(request, "Profile photo updated.")
     return redirect(reverse("my_profile"))

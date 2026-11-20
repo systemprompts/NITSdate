@@ -126,8 +126,27 @@ class FlowTests(TestCase):
         self.client.post(reverse("edit_field", args=["bio"]), {"value": "second"})
         p = Profile.objects.get(user=self.a)
         self.assertEqual(p.bio, "second")
-        self.assertEqual(p.edits_of("bio"), 2)
+        self.assertEqual(p.edits_of("bio"), 1)        # filling it in the first time wasn't an edit
         self.assertEqual(p.privacy_of("bio"), ONLY_ME)
+
+    def test_first_fill_is_not_an_edit(self):
+        self.login(self.a)
+        edit = lambda key, value: self.client.post(reverse("edit_field", args=[key]), {"value": value})
+        resp = edit("hometown", "Silchar")
+        self.assertEqual(Profile.objects.get(user=self.a).edits_of("hometown"), 0)
+        self.assertIsNone(Profile.objects.get(user=self.a).last_edited_of("hometown"))
+        self.assertIn("Hometown added.", [str(m) for m in resp.wsgi_request._messages])
+        edit("hometown", "")                              # clearing it is a change
+        edit("hometown", "Guwahati")                      # and so is filling it in again afterwards
+        self.assertEqual(Profile.objects.get(user=self.a).edits_of("hometown"), 2)
+        edit("name", "Aarav New")                         # answers from sign-up always count
+        self.assertEqual(Profile.objects.get(user=self.a).edits_of("name"), 1)
+        photo = lambda: self.client.post(reverse("edit_field", args=["photo"]),
+                                         {"value": SimpleUploadedFile("me.png", png_bytes(), content_type="image/png")})
+        photo()                                           # first profile photo: not an edit
+        self.assertEqual(Profile.objects.get(user=self.a).edits_of("photo"), 0)
+        photo()                                           # replacing it is
+        self.assertEqual(Profile.objects.get(user=self.a).edits_of("photo"), 1)
 
     def test_profile_photo_respects_privacy(self):
         self.login(self.a)
@@ -691,7 +710,9 @@ class BlockAndGalleryTests(TestCase):
         self.client.post(reverse("gallery_make_avatar", args=[pub.pk]))
         profile = Profile.objects.get(user=self.a)
         self.assertTrue(profile.photo)
-        self.assertEqual(profile.edits_of("photo"), 1)
+        self.assertEqual(profile.edits_of("photo"), 0)       # first profile photo: not an edit
+        self.client.post(reverse("gallery_make_avatar", args=[con.pk]))
+        self.assertEqual(Profile.objects.get(user=self.a).edits_of("photo"), 1)   # switching it is
         self.client.post(reverse("gallery_delete", args=[pub.pk]))
         self.assertFalse(GalleryPhoto.objects.filter(pk=pub.pk).exists())
 

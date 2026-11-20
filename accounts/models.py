@@ -110,6 +110,14 @@ class Profile(models.Model):
         meta["edits"] = meta.get("edits", 0) + 1
         meta["last_edited"] = timezone.now().isoformat()
 
+    def note_change(self, key, was_empty):
+        """Count a change to `key`, except filling it in for the very first time: an empty field
+        with no edits has never had a value (clearing a value counts as an edit)."""
+        if was_empty and self.edits_of(key) == 0:
+            return False
+        self.record_edit(key)
+        return True
+
     def init_meta(self, overrides=None):
         overrides = overrides or {}
         for f in FIELDS:
