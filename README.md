@@ -71,6 +71,8 @@ Tested layout: Ubuntu, MariaDB 10.5+ (or MySQL 8+), nginx, Python 3.12.
 3. `python manage.py migrate && python manage.py collectstatic --noinput`
 4. `sudo cp deploy/nitsdate.service /etc/systemd/system/ && sudo systemctl enable --now nitsdate`
 5. Copy `deploy/nginx-nitsdate.conf` to nginx, set the domain, then `sudo certbot --nginx -d <domain>`.
+   To keep the server's IP private behind Cloudflare instead, follow the steps at the top of
+   `deploy/nginx-nitsdate-cloudflare.conf` (Origin CA certificate, `deploy/cloudflare-ips.sh`).
 6. After your first Google sign-in: `python manage.py make_admin <your email>`.
 7. Nightly backups: add `deploy/backup.sh` to cron (see the comment at the top of the file).
 
