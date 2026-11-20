@@ -83,7 +83,7 @@ def match_home(request):
         "age_ceiling": hi,
         "is_minor": me.profile.is_minor,
         "gender_choices": GENDER_CHOICES,
-        "selected_genders": me.profile.likes_list,     # starts from the profile's "I like" every time
+        "selected_genders": [],                        # every search starts at Any
         "history": history,
         "searching_now": MatchSession.objects.active().exclude(user=me).count(),
         "search_hours": settings.MATCH_SEARCH_HOURS,
@@ -94,12 +94,13 @@ def match_home(request):
     })
 
 
-def _chosen_genders(posted, profile):
-    """"any" (or every gender) means anyone; nothing picked falls back to the profile's "I like"."""
+def _chosen_genders(posted):
+    """The genders picked for this search; "any", nothing, or every gender all mean anyone.
+    It has nothing to do with "I like" on the profile."""
     picked = [g for g, _ in GENDER_CHOICES if g in posted]
     if "any" in posted or len(picked) == len(GENDER_CHOICES):
         return ""
-    return ",".join(picked) if picked else profile.likes
+    return ",".join(picked)
 
 
 @login_required
@@ -122,7 +123,7 @@ def start(request):
     if min_age > max_age:
         messages.error(request, "The minimum age can't be above the maximum age.")
         return redirect("match")
-    chosen = {"genders": _chosen_genders(request.POST.getlist("genders"), me.profile)}
+    chosen = {"genders": _chosen_genders(request.POST.getlist("genders"))}
     for key, _, choices, _ in FILTERS:
         on = bool(request.POST.get(f"use_{key}"))   # an unticked filter means "anyone"
         picked = set(request.POST.getlist(key)) if on else set()

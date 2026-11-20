@@ -16,7 +16,7 @@ class MatchSession(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="match_sessions")
     status = models.CharField(max_length=10, choices=STATUSES, default=SEARCHING)
-    # who they want to meet this time; starts from the profile's "I like" but can be changed per search
+    # who they want to meet in this search (Any by default; unrelated to the profile's "I like")
     genders = models.CharField(max_length=40, blank=True, help_text="Comma separated; empty = any gender")
     # filters
     min_age = models.PositiveSmallIntegerField(default=18)

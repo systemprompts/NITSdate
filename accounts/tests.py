@@ -181,8 +181,9 @@ class FlowTests(TestCase):
 
     # ---- matchmaking -------------------------------------------------------------
     def start_search(self, user, **filters):
+        """Search as `user`, by default looking for the genders their profile likes (as if they picked them)."""
         self.login(user)
-        data = {"min_age": 18, "max_age": 30, **filters}
+        data = {"min_age": 18, "max_age": 30, "genders": user.profile.likes_list, **filters}
         return self.client.post(reverse("match_start"), data)
 
     def test_mutual_match_and_cooldown(self):
@@ -223,8 +224,15 @@ class FlowTests(TestCase):
         self.start_search(self.b, min_age=25, max_age=30)  # b is 20, a is 21 -> a outside b's range
         self.assertFalse(Conversation.objects.exists())
 
-    def test_search_gender_starts_from_profile_and_can_change(self):
-        self.start_search(self.a)                                    # nothing picked: the profile's "I like"
+    def test_search_gender_defaults_to_any(self):
+        self.login(self.a)
+        form = self.client.get(reverse("match")).content.decode()
+        self.assertIn('value="any" data-any checked', form)              # Any is ticked to start with
+        self.assertNotIn('value="female" checked', form)                 # whatever "I like" says
+        self.start_search(self.a, genders=[])                            # nothing picked: anyone
+        self.assertEqual(MatchSession.objects.get(user=self.a).genders, "")
+        MatchSession.objects.all().delete()
+        self.start_search(self.a, genders=["female"])
         self.assertEqual(MatchSession.objects.get(user=self.a).genders, "female")
         MatchSession.objects.all().delete()
         self.start_search(self.a, genders=["female", "any"])         # Any wins
