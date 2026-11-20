@@ -76,7 +76,17 @@ def inbox(request):
         conv.unread = unread.get(conv.pk, (None, 0))[1]
         conv.msg_blocked = conv.other_id(me) in blocked_with
     tabs = [{"key": t, "label": TAB_LABELS[t], "unread": tab_unread[t], "count": tab_count.get(t, 0)} for t in TAB_ORDER]
-    return render(request, "chat/inbox.html", {"tab": tab, "tabs": tabs, "conversations": page, "page": page})
+    return render(request, "chat/inbox.html", {"tab": tab, "tabs": tabs, "conversations": page, "page": page,
+                                               "inbox_version": services.inbox_version(me, sum(tab_unread.values()))})
+
+
+@login_required
+def badges(request):
+    """Polled by every open page so the nav badges and the Messages list update on their own."""
+    from accounts.context_processors import badge_counts
+    data = badge_counts(request.user)
+    data["inbox"] = services.inbox_version(request.user, data["messages"])
+    return JsonResponse(data)
 
 
 def _panel(request, conv):

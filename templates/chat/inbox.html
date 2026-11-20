@@ -2,6 +2,7 @@
 {% block title %}Messages{% endblock %}
 {% block content %}
 <div class="page-head"><h1>Messages</h1></div>
+<div data-live-inbox data-version="{{ inbox_version }}" data-tab="{{ tab }}">
 
 <nav class="tabs tier-tabs">
   {% for t in tabs %}
@@ -43,6 +44,7 @@
     </div>
   {% endfor %}
 </section>
+</div>
 {% if page.has_other_pages %}
 <nav class="pager">
   {% if page.has_previous %}<a class="btn btn-ghost" href="{% qs page=page.previous_page_number %}">Newer</a>{% endif %}

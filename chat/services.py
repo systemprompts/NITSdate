@@ -1,7 +1,7 @@
 """Connection / priority workflow and conversation helpers."""
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, F, Q
+from django.db.models import Count, F, Max, Q
 from django.utils import timezone
 
 from accounts.models import Connection, ConnectionRequest, pair_ids
@@ -58,6 +58,15 @@ def message_counts(conv, stage=None, cap=None):
             qs = qs.filter(stage=stage)
         counts[uid] = qs[:cap].count() if cap else qs.count()
     return counts
+
+
+def inbox_version(user, unread_total):
+    """Changes whenever the Messages list would look different: a new message or chat, a chat
+    ending, or messages being read (maybe in another tab)."""
+    agg = Conversation.objects.filter(member_q(user)).aggregate(
+        n=Count("id"), ended=Count("id", filter=Q(is_active=False)), last=Max("last_message_at"))
+    last = agg["last"].timestamp() if agg["last"] else 0
+    return f"{agg['n']}.{agg['ended']}.{last}.{unread_total}"
 
 
 def unread_by_conversation(user):

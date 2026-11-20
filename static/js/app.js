@@ -62,6 +62,60 @@
     if (!el.classList.contains("flash-error")) setTimeout(() => el.remove(), 6000);
   });
 
+  /* ---- live badges: unread messages, connection requests and (for mods) open reports are asked for
+     every 8 seconds while the page is visible, and right away when you come back to the tab. On the
+     Messages page the list itself is refreshed when something changed. ---- */
+  const mainnav = document.querySelector(".mainnav[data-badges-url]");
+  if (mainnav) {
+    const baseTitle = document.title.replace(/^\(\d+\)\s*/, "");
+    const setBadge = (key, n) => {
+      const link = mainnav.querySelector(`[data-badge="${key}"]`);
+      if (!link || n === undefined) return;
+      let b = link.querySelector(".badge");
+      if (n > 0) {
+        if (!b) { b = document.createElement("b"); b.className = "badge"; link.appendChild(b); }
+        b.textContent = n;
+      } else if (b) b.remove();
+    };
+    const setDot = (on) => {
+      const link = mainnav.querySelector('[data-dot="searching"]');
+      const dot = link && link.querySelector(".dot");
+      if (on && link && !dot) link.insertAdjacentHTML("beforeend", '<i class="dot pulse" title="Searching"></i>');
+      else if (!on && dot) dot.remove();
+    };
+    const live = document.querySelector("[data-live-inbox]");
+    let busy = false;
+    const reloadInbox = async () => {
+      const url = new URL(location.href);
+      url.searchParams.set("tab", live.dataset.tab);   // stay on the tab you're looking at
+      const res = await fetch(url, { headers: { "X-Requested-With": "fetch" }, credentials: "same-origin" });
+      if (!res.ok) return;
+      const fresh = new DOMParser().parseFromString(await res.text(), "text/html").querySelector("[data-live-inbox]");
+      if (fresh) { live.innerHTML = fresh.innerHTML; live.dataset.version = fresh.dataset.version; }
+    };
+    const refresh = async () => {
+      if (document.hidden || busy) return;
+      busy = true;
+      try {
+        const res = await fetch(mainnav.dataset.badgesUrl, { headers: { "X-Requested-With": "fetch" }, credentials: "same-origin" });
+        const type = res.headers.get("content-type") || "";
+        if (res.ok && type.includes("json")) {
+          const d = await res.json();
+          setBadge("messages", d.messages);
+          setBadge("requests", d.requests);
+          setBadge("reports", d.reports);
+          setDot(d.searching);
+          const waiting = d.messages + d.requests;
+          document.title = (waiting ? `(${waiting}) ` : "") + baseTitle;
+          if (live && d.inbox !== live.dataset.version) await reloadInbox();
+        }
+      } catch (_) { /* offline for a moment: try again on the next beat */ }
+      busy = false;
+    };
+    setInterval(refresh, 8000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+  }
+
   /* ---- "Any" chip: picking it clears the others, picking another clears it, and it comes back
      when nothing else is picked ---- */
   document.querySelectorAll("[data-any-group]").forEach((group) => {

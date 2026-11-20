@@ -16,7 +16,7 @@
       document.documentElement.setAttribute("data-theme", t);
     })();
   </script>
-  <title>{% block title %}nitsdate{% endblock %} · NIT Silchar</title>
+  <title>{% if nav_waiting %}({{ nav_waiting }}) {% endif %}{% block title %}nitsdate{% endblock %} · NIT Silchar</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Mukta:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -29,13 +29,13 @@
 <header class="topbar">
   <div class="topbar-inner">
     <a class="logo" href="{% url 'home' %}">nits<span class="logo-heart">{% icon 'heart' 18 %}</span>date</a>
-    <nav class="mainnav" aria-label="Main">
+    <nav class="mainnav" aria-label="Main" data-badges-url="{% url 'nav_badges' %}">
       <a href="{% url 'home' %}" class="{% if p == '/' or '/posts/' in p %}active{% endif %}">{% icon 'home' %}<span>Feed</span></a>
-      <a href="{% url 'match' %}" class="{% if p|slice:':7' == '/match/' %}active{% endif %}">{% icon 'zap' %}<span>Match</span>{% if nav_searching %}<i class="dot pulse" title="Searching"></i>{% endif %}</a>
-      <a href="{% url 'inbox' %}" class="{% if p|slice:':10' == '/messages/' %}active{% endif %}">{% icon 'chat' %}<span>Messages</span>{% if nav_unread_total %}<b class="badge">{{ nav_unread_total }}</b>{% endif %}</a>
-      <a href="{% url 'people' %}" class="{% if p|slice:':8' == '/people/' %}active{% endif %}">{% icon 'users' %}<span>People</span>{% if nav_requests %}<b class="badge">{{ nav_requests }}</b>{% endif %}</a>
+      <a href="{% url 'match' %}" class="{% if p|slice:':7' == '/match/' %}active{% endif %}" data-dot="searching">{% icon 'zap' %}<span>Match</span>{% if nav_searching %}<i class="dot pulse" title="Searching"></i>{% endif %}</a>
+      <a href="{% url 'inbox' %}" class="{% if p|slice:':10' == '/messages/' %}active{% endif %}" data-badge="messages">{% icon 'chat' %}<span>Messages</span>{% if nav_unread_total %}<b class="badge">{{ nav_unread_total }}</b>{% endif %}</a>
+      <a href="{% url 'people' %}" class="{% if p|slice:':8' == '/people/' %}active{% endif %}" data-badge="requests">{% icon 'users' %}<span>People</span>{% if nav_requests %}<b class="badge">{{ nav_requests }}</b>{% endif %}</a>
       <a href="{% url 'my_profile' %}" class="{% if p|slice:':4' == '/me/' or p|slice:':3' == '/u/' %}active{% endif %}">{% icon 'user' %}<span>Profile</span></a>
-      {% if is_mod %}<a href="{% url 'mod_reports' %}" class="{% if p|slice:':5' == '/mod/' %}active{% endif %}">{% icon 'shield' %}<span>Mod</span>{% if mod_open_reports %}<b class="badge">{{ mod_open_reports }}</b>{% endif %}</a>{% endif %}
+      {% if is_mod %}<a href="{% url 'mod_reports' %}" class="{% if p|slice:':5' == '/mod/' %}active{% endif %}" data-badge="reports">{% icon 'shield' %}<span>Mod</span>{% if mod_open_reports %}<b class="badge">{{ mod_open_reports }}</b>{% endif %}</a>{% endif %}
     </nav>
     <button type="button" class="icon-btn theme-toggle" data-theme-toggle title="Switch light / dark" aria-label="Switch light or dark theme">{% icon 'moon' 18 'icon-moon' %}{% icon 'sun' 18 'icon-sun' %}</button>
     <form method="post" action="{% url 'logout' %}" class="logout-form">

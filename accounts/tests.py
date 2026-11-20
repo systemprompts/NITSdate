@@ -161,6 +161,24 @@ class FlowTests(TestCase):
         self.assertIn("let's bind strongly", conv.messages.get(sender__isnull=True).text)
         self.assertTrue(Connection.objects.exists())
 
+    def test_badges_update_without_a_refresh(self):
+        from chat.services import connect_users
+        conv = connect_users(self.a, self.b)
+        self.login(self.a)
+        self.client.get(reverse("chat_room", args=[conv.pk]))          # a has read the welcome message
+        first = self.client.get(reverse("nav_badges")).json()
+        self.assertEqual((first["messages"], first["requests"]), (0, 0))
+        page = self.client.get(reverse("inbox"))
+        self.assertContains(page, f'data-version="{first['inbox']}"')
+        self.send(conv, self.b, 2)                                       # b writes twice
+        conv.refresh_from_db()
+        Conversation.objects.filter(pk=conv.pk).update(last_message_at=timezone.now())
+        later = self.client.get(reverse("nav_badges")).json()
+        self.assertEqual(later["messages"], 2)
+        self.assertNotEqual(later["inbox"], first["inbox"])              # the Messages list reloads itself
+        self.assertContains(self.client.get(reverse("home")), "<title>(2) ")
+        self.assertNotIn("reports", later)                               # only moderators get report counts
+
     # ---- matchmaking -------------------------------------------------------------
     def start_search(self, user, **filters):
         self.login(user)

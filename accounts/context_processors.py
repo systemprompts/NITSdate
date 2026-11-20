@@ -3,25 +3,43 @@ from django.conf import settings
 from .models import ConnectionRequest
 
 
+def badge_counts(user):
+    """The numbers on the nav badges. Pages render them, and every open page asks for them again
+    every few seconds (chat.views.badges), so they stay current without a refresh."""
+    from chat.services import unread_by_conversation
+    from matchmaking.models import MatchSession
+    from moderation.models import Report
+    from moderation.permissions import is_mod
+
+    tiers = {"match": 0, "inbox": 0, "priority": 0}
+    for tier, n in unread_by_conversation(user).values():
+        tiers[tier] += n
+    counts = {
+        "tiers": tiers,
+        "messages": sum(tiers.values()),
+        "requests": ConnectionRequest.objects.filter(to_user=user, status=ConnectionRequest.PENDING,
+                                                     source=ConnectionRequest.SOURCE_PROFILE).count(),
+        "searching": MatchSession.objects.active().filter(user=user).exists(),
+    }
+    if is_mod(user):
+        counts["reports"] = Report.objects.filter(status=Report.OPEN).count()
+    return counts
+
+
 def nav(request):
     user = request.user
     ctx = {"DEV_LOGIN": settings.DEV_LOGIN}
     if not user.is_authenticated or not user.has_profile:
         return ctx
-    from chat.services import unread_by_conversation
-    from matchmaking.models import MatchSession
-    from moderation.models import Report
     from moderation.permissions import is_admin, is_mod, request_limit, restriction_for
 
-    unread = {"match": 0, "inbox": 0, "priority": 0}
-    for tier, n in unread_by_conversation(user).values():
-        unread[tier] += n
+    counts = badge_counts(user)
     ctx.update({
-        "nav_unread": unread,
-        "nav_unread_total": sum(unread.values()),
-        "nav_requests": ConnectionRequest.objects.filter(to_user=user, status=ConnectionRequest.PENDING,
-                                                         source=ConnectionRequest.SOURCE_PROFILE).count(),
-        "nav_searching": MatchSession.objects.active().filter(user=user).exists(),
+        "nav_unread": counts["tiers"],
+        "nav_unread_total": counts["messages"],
+        "nav_requests": counts["requests"],
+        "nav_waiting": counts["messages"] + counts["requests"],
+        "nav_searching": counts["searching"],
     })
     limits = restriction_for(user)
     ctx["limits"] = limits
@@ -34,5 +52,5 @@ def nav(request):
     if is_mod(user):
         ctx["is_mod"] = True
         ctx["is_admin"] = is_admin(user)
-        ctx["mod_open_reports"] = Report.objects.filter(status=Report.OPEN).count()
+        ctx["mod_open_reports"] = counts.get("reports", 0)
     return ctx
