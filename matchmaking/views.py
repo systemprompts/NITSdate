@@ -17,8 +17,9 @@ from .models import MatchSession
 from .services import expire_stale, try_match
 
 FILTERS = [
-    ("looking_for", "Looking for", LOOKING_FOR_CHOICES,
-     "You're matched with people who want at least one of the same things. Your profile's answer is always included."),
+    ("looking_for", "Here for", LOOKING_FOR_CHOICES,
+     "You're matched with people here for at least one of the same things. Your profile's \u201cLooking for\u201d answer "
+     "is always included."),
     ("personality", "Personality type", PERSONALITY_CHOICES,
      "Only people with one of these personalities. People who haven't said still count."),
     ("years", "Currently studying", YEAR_CHOICES,
@@ -71,7 +72,6 @@ def match_home(request):
     selected = {key: (last.values(key) if last else []) for key, *_ in FILTERS}
     from_profile = {"looking_for": me.profile.looking_for}
     history = MatchSession.objects.filter(user=me).exclude(status=MatchSession.SEARCHING)[:6]
-    likes = dict(GENDER_CHOICES)
     return render(request, "matchmaking/match.html", {
         "current": current,
         "filters": [{"key": k, "label": label, "choices": choices, "help": help_text, "selected": selected[k],
@@ -82,7 +82,8 @@ def match_home(request):
         "age_floor": lo,
         "age_ceiling": hi,
         "is_minor": me.profile.is_minor,
-        "likes_labels": [likes[g] for g in me.profile.likes_list],
+        "gender_choices": GENDER_CHOICES,
+        "selected_genders": me.profile.likes_list,     # starts from the profile's "I like" every time
         "history": history,
         "searching_now": MatchSession.objects.active().exclude(user=me).count(),
         "search_hours": settings.MATCH_SEARCH_HOURS,
@@ -91,6 +92,14 @@ def match_home(request):
         "mm_blocked": restriction_for(me).no_matchmaking,
         "first_check_ms": _first_check_ms(current),
     })
+
+
+def _chosen_genders(posted, profile):
+    """"any" (or every gender) means anyone; nothing picked falls back to the profile's "I like"."""
+    picked = [g for g, _ in GENDER_CHOICES if g in posted]
+    if "any" in posted or len(picked) == len(GENDER_CHOICES):
+        return ""
+    return ",".join(picked) if picked else profile.likes
 
 
 @login_required
@@ -113,7 +122,7 @@ def start(request):
     if min_age > max_age:
         messages.error(request, "The minimum age can't be above the maximum age.")
         return redirect("match")
-    chosen = {}
+    chosen = {"genders": _chosen_genders(request.POST.getlist("genders"), me.profile)}
     for key, _, choices, _ in FILTERS:
         on = bool(request.POST.get(f"use_{key}"))   # an unticked filter means "anyone"
         picked = set(request.POST.getlist(key)) if on else set()

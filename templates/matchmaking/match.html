@@ -22,8 +22,8 @@
         appear in Messages under Matchmaking.</p>
       <ul class="filter-summary">
         <li><b>Age</b><span>{{ current.min_age }} to {{ current.max_age }}</span></li>
-        <li><b>Interested in</b><span>{{ likes_labels|join:", " }}</span></li>
-        {% if current.looking_for %}<li><b>Looking for</b><span>{{ current.looking_for|choice_labels:"looking_for" }}</span></li>{% endif %}
+        <li><b>Looking for</b><span>{% if current.genders %}{{ current.genders|choice_labels:"gender" }}{% else %}Anyone{% endif %}</span></li>
+        {% if current.looking_for %}<li><b>Here for</b><span>{{ current.looking_for|choice_labels:"looking_for" }}</span></li>{% endif %}
         {% if current.personality %}<li><b>Personality</b><span>{{ current.personality|choice_labels:"personality" }}</span></li>{% endif %}
         {% if current.years %}<li><b>Studying</b><span>{{ current.years|choice_labels:"year" }}</span></li>{% endif %}
       </ul>
@@ -34,13 +34,16 @@
   {% else %}
     <form method="post" action="{% url 'match_start' %}" class="sheet stack match-form">
       {% csrf_token %}
-      <div class="field">
-        <span class="label">Interested in</span>
-        <div class="readonly-chips">
-          {% for l in likes_labels %}<span class="tag">{{ l }}</span>{% endfor %}
-          <a href="{% url 'my_profile' %}#f-likes" class="small muted">Change in your profile</a>
+      <fieldset class="field">
+        <legend>Looking for</legend>
+        <div class="chips" data-any-group>
+          {% for value, label in gender_choices %}
+            <label class="chip-input"><input type="checkbox" name="genders" value="{{ value }}" {% if value in selected_genders %}checked{% endif %}><span>{{ label }}</span></label>
+          {% endfor %}
+          <label class="chip-input"><input type="checkbox" name="genders" value="any" data-any {% if not selected_genders %}checked{% endif %}><span>Any</span></label>
         </div>
-      </div>
+        <small class="muted">Starts from “I like” on your profile. Change it for this search, for example to make friends.</small>
+      </fieldset>
       <div class="field">
         <span class="label">Age range</span>
         <div class="age-range">
@@ -81,7 +84,7 @@
   <aside class="side-text">
     <h3>How it works</h3>
     <ol class="steps">
-      <li>You're paired with someone who fits you both: “I like” in both directions, age range and any filters you switched on. Under-18s are only ever matched with other under-18s.</li>
+      <li>You're paired with someone who fits you both: who you're each looking for, age range and any filters you switched on. Under-18s are only ever matched with other under-18s.</li>
       <li>You chat under made-up nicknames. No profiles, no real names.</li>
       <li>After {{ connect_after }} messages each, a Connect button appears. When they accept, the chat moves to your Inbox and your profiles unlock.</li>
       <li>You're never matched with someone you're already connected with, and the same two people won't be matched again for {{ cooldown_days }} days.</li>

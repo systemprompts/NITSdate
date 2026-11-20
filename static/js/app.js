@@ -62,6 +62,19 @@
     if (!el.classList.contains("flash-error")) setTimeout(() => el.remove(), 6000);
   });
 
+  /* ---- "Any" chip: picking it clears the others, picking another clears it, and it comes back
+     when nothing else is picked ---- */
+  document.querySelectorAll("[data-any-group]").forEach((group) => {
+    const any = group.querySelector("[data-any]");
+    const others = [...group.querySelectorAll("input[type=checkbox]")].filter((i) => i !== any);
+    const sync = (changed) => {
+      if (changed === any && any.checked) others.forEach((i) => { i.checked = false; });
+      else if (changed !== any && changed.checked) any.checked = false;
+      if (!others.some((i) => i.checked)) any.checked = true;
+    };
+    [any, ...others].forEach((i) => i.addEventListener("change", () => sync(i)));
+  });
+
   /* ---- typed confirmation: the button wakes up once the phrase matches (any case) ---- */
   document.querySelectorAll("[data-phrase]").forEach((input) => {
     const btn = input.form.querySelector("button");

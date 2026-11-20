@@ -205,6 +205,25 @@ class FlowTests(TestCase):
         self.start_search(self.b, min_age=25, max_age=30)  # b is 20, a is 21 -> a outside b's range
         self.assertFalse(Conversation.objects.exists())
 
+    def test_search_gender_starts_from_profile_and_can_change(self):
+        self.start_search(self.a)                                    # nothing picked: the profile's "I like"
+        self.assertEqual(MatchSession.objects.get(user=self.a).genders, "female")
+        MatchSession.objects.all().delete()
+        self.start_search(self.a, genders=["female", "any"])         # Any wins
+        self.assertEqual(MatchSession.objects.get(user=self.a).genders, "")
+        page = self.client.get(reverse("match"))
+        self.assertContains(page, "Anyone")
+
+    def test_looking_for_friends_of_any_gender(self):
+        c = make_user("Chirag Test", "male", 22, "female")          # profile says he likes women
+        self.start_search(self.a, genders=["male"])                  # a wants to meet men this time (friends)
+        self.start_search(c)                                         # c still looks for women only
+        self.assertFalse(Conversation.objects.exists())
+        MatchSession.objects.filter(user=c).delete()
+        self.start_search(c, genders=["any"])                        # now c is open to anyone
+        conv = Conversation.objects.get()
+        self.assertEqual({conv.user1_id, conv.user2_id}, {self.a.pk, c.pk})
+
     def test_unanswered_questions_never_rule_anyone_out(self):
         # a only wants 3rd years; b never said her year, so she still fits
         self.start_search(self.a, use_years="1", years=["3"])

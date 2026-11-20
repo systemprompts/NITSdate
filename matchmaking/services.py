@@ -55,11 +55,17 @@ def _accepts(session, profile):
     return True
 
 
+def wants_gender(session, profile):
+    """Is this search open to `profile`'s gender? An empty choice means any gender."""
+    genders = session.values("genders")
+    return not genders or profile.gender in genders
+
+
 def compatible(a, b):
     pa, pb = a.user.profile, b.user.profile
     if pa.is_minor != pb.is_minor:  # under-18s are matched only with under-18s
         return False
-    if pb.gender not in pa.likes_list or pa.gender not in pb.likes_list:
+    if not (wants_gender(a, pb) and wants_gender(b, pa)):
         return False
     # "looking for" works both ways: they need one answer in common, unless either is open to anything
     la, lb = looking_set(a, pa), looking_set(b, pb)
