@@ -33,13 +33,23 @@ def excluded_partner_ids(user):
     return ids
 
 
+def looking_set(session, profile):
+    """What a searcher is looking for in this search: the options they ticked plus their profile's
+    answer. Empty = the filter is off, so they're open to anything."""
+    picked = set(session.values("looking_for"))
+    if picked and profile.looking_for:
+        picked.add(profile.looking_for)
+    return picked
+
+
 def _accepts(session, profile):
+    """Age range plus the one-way filters (personality, year). Someone who hasn't answered a
+    question is never ruled out by it."""
     if not (session.min_age <= profile.age <= session.max_age):
         return False
-    for field, value in (("looking_for", profile.looking_for), ("personality", profile.personality),
-                         ("years", profile.year)):
+    for field, value in (("personality", profile.personality), ("years", profile.year)):
         wanted = session.values(field)
-        if wanted and value not in wanted:
+        if wanted and value and value not in wanted:
             return False
     return True
 
@@ -49,6 +59,10 @@ def compatible(a, b):
     if pa.is_minor != pb.is_minor:  # under-18s are matched only with under-18s
         return False
     if pb.gender not in pa.likes_list or pa.gender not in pb.likes_list:
+        return False
+    # "looking for" works both ways: they need one answer in common, unless either is open to anything
+    la, lb = looking_set(a, pa), looking_set(b, pb)
+    if la and lb and not la & lb:
         return False
     return _accepts(a, pb) and _accepts(b, pa)
 

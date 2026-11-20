@@ -255,6 +255,13 @@ input[type=file] { font: inherit; font-size: .92rem; max-width: 100%; }
 .chip-input input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .readonly-chips { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
 
+/* matchmaking filters: the options appear once a filter is switched on */
+fieldset.filter { border: 0; padding: 0; margin: 0 0 .5rem; min-width: 0; }
+.filter .filter-options { display: none; margin: .45rem 0 .3rem 1.75rem; }
+.filter:has(> .check input:checked) .filter-options { display: flex; }
+@supports not selector(:has(*)) { .filter .filter-options { display: flex; } }
+.chip-input input:disabled, .chip-input input:disabled + span { cursor: default; }
+
 .tags { display: inline-flex; flex-wrap: wrap; gap: .1rem .9rem; }
 .tag { display: inline; }
 .readonly-chips .tag { font-weight: 600; }

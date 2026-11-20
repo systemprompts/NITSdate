@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Delete my account{% endblock %}
+{% block content %}
+<a href="{% url 'my_profile' %}" class="back-link">{% icon 'back' 16 %} Back to my profile</a>
+
+<section class="sheet narrow-wide">
+  <h1>Delete your account?</h1>
+  <p>This deletes <b>everything</b>, for good: your profile, photos, posts, comments, connections and every chat
+    you were in. Chats disappear for the other person too. It can't be undone.</p>
+
+  <ul class="plain-list">
+    <li><span>Posts</span><b>{{ summary.posts }}</b></li>
+    <li><span>Comments</span><b>{{ summary.comments }}</b></li>
+    <li><span>Chats</span><b>{{ summary.chats }}</b></li>
+    <li><span>Photos</span><b>{{ summary.photos }}</b></li>
+  </ul>
+  <p class="muted small">If you sign in with Google again later, you'll start over as a brand-new account.</p>
+
+  <form method="post" class="stack">
+    {% csrf_token %}
+    <label class="field"><span class="label">To confirm, type <b>{{ phrase }}</b></span>
+      <input type="text" name="phrase" required autocomplete="off" autocapitalize="off" spellcheck="false"
+             data-phrase="{{ phrase|lower }}" aria-label="Type {{ phrase }} to confirm"></label>
+    <div class="row-gap">
+      <button class="btn btn-danger">{% icon 'trash' 16 %} Confirm delete</button>
+      <a class="btn btn-ghost" href="{% url 'my_profile' %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

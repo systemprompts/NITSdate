@@ -201,6 +201,45 @@ class FlowTests(TestCase):
         self.start_search(self.b, min_age=25, max_age=30)  # b is 20, a is 21 -> a outside b's range
         self.assertFalse(Conversation.objects.exists())
 
+    def test_unanswered_questions_never_rule_anyone_out(self):
+        # a only wants 3rd years; b never said her year, so she still fits
+        self.start_search(self.a, use_years="1", years=["3"])
+        self.start_search(self.b)
+        self.assertTrue(Conversation.objects.exists())
+
+    def test_filters_only_count_when_switched_on(self):
+        Profile.objects.filter(user=self.b).update(year="2")
+        self.start_search(self.a, years=["3"])              # options picked, but the filter is off
+        self.assertEqual(MatchSession.objects.get(user=self.a).years, "")
+        self.start_search(self.b)
+        self.assertTrue(Conversation.objects.exists())
+
+    def test_year_filter_rules_out_other_answers(self):
+        Profile.objects.filter(user=self.b).update(year="2")
+        self.start_search(self.a, use_years="1", years=["3"])
+        self.start_search(self.b)
+        self.assertFalse(Conversation.objects.exists())
+
+    def test_looking_for_works_both_ways_and_includes_profile(self):
+        Profile.objects.filter(user=self.a).update(looking_for="unsure")
+        self.start_search(self.a, use_looking_for="1", looking_for=["friendship"])
+        self.assertEqual(MatchSession.objects.get(user=self.a).looking_for, "friendship,unsure")
+        # b wants dating (and a relationship, from her profile): nothing in common with a
+        Profile.objects.filter(user=self.b).update(looking_for="relationship")
+        self.start_search(self.b, use_looking_for="1", looking_for=["dating"])
+        self.assertFalse(Conversation.objects.exists())
+        # c's profile says "not sure yet" and she switches the filter on: a's profile answer counts too
+        c = make_user("Chitra Test", "female", 20, "male", looking_for="unsure")
+        self.start_search(c, use_looking_for="1")
+        conv = Conversation.objects.get()
+        self.assertEqual({conv.user1_id, conv.user2_id}, {self.a.pk, c.pk})
+
+    def test_looking_for_filter_off_is_open_to_anything(self):
+        Profile.objects.filter(user=self.b).update(looking_for="relationship")
+        self.start_search(self.a, use_looking_for="1", looking_for=["friendship"])
+        self.start_search(self.b)                           # b didn't switch the filter on
+        self.assertTrue(Conversation.objects.exists())
+
     def test_search_expires(self):
         self.start_search(self.a)
         MatchSession.objects.update(expires_at=timezone.now() - timedelta(minutes=1))
@@ -666,3 +705,49 @@ class LegalPagesTests(TestCase):
         for url in ("/privacy/", "/terms/"):
             self.assertEqual(self.client.get(url).status_code, 200)
         self.assertRedirects(self.client.get("/"), reverse("onboarding"))
+
+
+@override_settings(MEDIA_ROOT="/tmp/nitsdate-test-media")
+class DeleteOwnAccountTests(TestCase):
+    def setUp(self):
+        self.me = make_user("Mira Leaving", "female", 20, "male")
+        self.other = make_user("Omar Stays", "male", 21, "female")
+        self.client.force_login(self.me)
+
+    def test_page_and_wrong_phrase(self):
+        resp = self.client.get(reverse("delete_my_account"))
+        self.assertContains(resp, "I want to stay single")
+        self.client.post(reverse("delete_my_account"), {"phrase": "I want to stay"})
+        self.me.refresh_from_db()
+        self.assertTrue(self.me.is_active)
+
+    def test_phrase_any_case_deletes_everything(self):
+        from chat.services import connect_users
+        post = Post.objects.create(author=self.me, title="mine")
+        theirs = Post.objects.create(author=self.other, title="theirs", comment_count=1)
+        comment = Comment.objects.create(post=theirs, author=self.me, body="my comment")
+        conv = connect_users(self.me, self.other)
+        Message.objects.create(conversation=conv, sender=self.me, stage=conv.tier, text="hi")
+
+        resp = self.client.post(reverse("delete_my_account"), {"phrase": "  i WANT to stay   SINGLE "})
+        self.assertRedirects(resp, reverse("login"))
+        self.me.refresh_from_db()
+        self.assertFalse(self.me.is_active)
+        self.assertEqual(self.me.email, "")
+        self.assertFalse(Profile.objects.filter(user=self.me).exists())
+        self.assertFalse(Post.objects.filter(pk=post.pk).exists())
+        self.assertFalse(Conversation.objects.filter(pk=conv.pk).exists())
+        self.assertFalse(Connection.objects.exists())
+        comment.refresh_from_db()
+        self.assertTrue(comment.is_deleted)
+        self.assertEqual(comment.body, "")
+        self.assertTrue(Post.objects.filter(pk=theirs.pk).exists())   # other people's posts stay
+        # signed out
+        self.assertEqual(self.client.get(reverse("my_profile")).status_code, 302)
+
+    def test_admins_cant_delete_themselves_here(self):
+        self.me.is_superuser = True
+        self.me.save()
+        self.client.post(reverse("delete_my_account"), {"phrase": "I want to stay single"})
+        self.me.refresh_from_db()
+        self.assertTrue(self.me.is_active)

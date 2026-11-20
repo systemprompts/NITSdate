@@ -17,9 +17,12 @@ from .models import MatchSession
 from .services import expire_stale, try_match
 
 FILTERS = [
-    ("looking_for", "Looking for", LOOKING_FOR_CHOICES),
-    ("personality", "Personality type", PERSONALITY_CHOICES),
-    ("years", "Currently studying", YEAR_CHOICES),
+    ("looking_for", "Looking for", LOOKING_FOR_CHOICES,
+     "You're matched with people who want at least one of the same things. Your profile's answer is always included."),
+    ("personality", "Personality type", PERSONALITY_CHOICES,
+     "Only people with one of these personalities. People who haven't said still count."),
+    ("years", "Currently studying", YEAR_CHOICES,
+     "Only people in one of these years. People who haven't said still count."),
 ]
 
 
@@ -46,13 +49,15 @@ def match_home(request):
             return redirect("chat_room", pk=current.conversation_id)
     last = MatchSession.objects.filter(user=me).first()
     lo, hi = age_bounds(me.profile)
-    selected = {key: (last.values(key) if last else []) for key, _, _ in FILTERS}
+    selected = {key: (last.values(key) if last else []) for key, *_ in FILTERS}
+    from_profile = {"looking_for": me.profile.looking_for}
     history = MatchSession.objects.filter(user=me).exclude(status=MatchSession.SEARCHING)[:6]
     likes = dict(GENDER_CHOICES)
     return render(request, "matchmaking/match.html", {
         "current": current,
-        "filters": [{"key": k, "label": label, "choices": choices, "selected": selected[k]}
-                    for k, label, choices in FILTERS],
+        "filters": [{"key": k, "label": label, "choices": choices, "help": help_text, "selected": selected[k],
+                     "on": bool(selected[k]), "from_profile": from_profile.get(k, "")}
+                    for k, label, choices, help_text in FILTERS],
         "min_age": min(max(last.min_age, lo), hi) if last else lo,
         "max_age": min(max(last.max_age, lo), hi) if last else min(30, hi),
         "age_floor": lo,
@@ -89,9 +94,12 @@ def start(request):
         messages.error(request, "The minimum age can't be above the maximum age.")
         return redirect("match")
     chosen = {}
-    for key, _, choices in FILTERS:
-        allowed = [c for c, _ in choices]
-        chosen[key] = ",".join(c for c in allowed if c in request.POST.getlist(key))
+    for key, _, choices, _ in FILTERS:
+        on = bool(request.POST.get(f"use_{key}"))   # an unticked filter means "anyone"
+        picked = set(request.POST.getlist(key)) if on else set()
+        if on and key == "looking_for" and me.profile.looking_for:
+            picked.add(me.profile.looking_for)       # your profile's answer always counts
+        chosen[key] = ",".join(c for c, _ in choices if c in picked)
     session = MatchSession.objects.create(
         user=me, min_age=min_age, max_age=max_age,
         expires_at=timezone.now() + timedelta(hours=settings.MATCH_SEARCH_HOURS), **chosen)

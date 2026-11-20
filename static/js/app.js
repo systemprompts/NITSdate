@@ -62,6 +62,14 @@
     if (!el.classList.contains("flash-error")) setTimeout(() => el.remove(), 6000);
   });
 
+  /* ---- typed confirmation: the button wakes up once the phrase matches (any case) ---- */
+  document.querySelectorAll("[data-phrase]").forEach((input) => {
+    const btn = input.form.querySelector("button");
+    const sync = () => { btn.disabled = input.value.trim().replace(/\s+/g, " ").toLowerCase() !== input.dataset.phrase; };
+    input.addEventListener("input", sync);
+    sync();
+  });
+
   /* ---- confirm before destructive forms ---- */
   document.addEventListener("submit", (e) => {
     const msg = e.target.dataset?.confirm;

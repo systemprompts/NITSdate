@@ -21,6 +21,7 @@ from chat.services import WorkflowError, accept_connection_request, connected_co
 from feed.models import Post
 from moderation.models import ModeratorGrant
 from moderation.permissions import is_mod, request_limit
+from moderation.services import account_summary, delete_account
 
 from .forms import OnboardingForm, clean_field_input
 from chat.models import Conversation, PriorityRequest
@@ -234,6 +235,28 @@ def set_visibility(request):
     else:
         messages.success(request, "Your profile is locked. Only connections can see your details.")
     return redirect("my_profile")
+
+
+STAY_SINGLE = "I want to stay single"
+
+
+@login_required
+def delete_my_account(request):
+    """Delete your own account and everything in it, once you've typed the phrase."""
+    me = request.user
+    if me.is_superuser:   # so the site can't lose its last admin by accident
+        messages.error(request, "Admin accounts can't be deleted from here.")
+        return redirect("my_profile")
+    if request.method == "POST":
+        typed = " ".join(request.POST.get("phrase", "").split())
+        if typed.casefold() != STAY_SINGLE.casefold():
+            messages.error(request, f"Type “{STAY_SINGLE}” to confirm.")
+            return redirect("delete_my_account")
+        delete_account(me, remove_content=True)
+        logout(request)
+        messages.success(request, "Your account and everything in it has been deleted. Take care 💛")
+        return redirect("login")
+    return render(request, "accounts/delete_account.html", {"summary": account_summary(me), "phrase": STAY_SINGLE})
 
 
 # ---- other people's profiles -----------------------------------------------------------

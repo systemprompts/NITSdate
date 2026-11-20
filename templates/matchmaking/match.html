@@ -50,16 +50,26 @@
         </div>
         {% if is_minor %}<small class="muted">You're in the under-18 group, so you're matched only with students aged {{ age_floor }}–{{ age_ceiling }}.</small>{% endif %}
       </div>
-      {% for f in filters %}
-      <fieldset class="field">
-        <legend>{{ f.label }} <small class="muted">(leave empty for anyone)</small></legend>
-        <div class="chips">
-          {% for value, label in f.choices %}
-            <label class="chip-input"><input type="checkbox" name="{{ f.key }}" value="{{ value }}" {% if value in f.selected %}checked{% endif %}><span>{{ label }}</span></label>
-          {% endfor %}
-        </div>
-      </fieldset>
-      {% endfor %}
+      <div class="field">
+        <span class="label">Filters</span>
+        <p class="notice">{% icon 'info' 16 %}<span>Every filter you switch on makes a match less likely. Leave them off to
+          meet anyone in your age range who likes you back.</span></p>
+        {% for f in filters %}
+        <fieldset class="filter">
+          <label class="check"><input type="checkbox" name="use_{{ f.key }}" value="1" {% if f.on %}checked{% endif %}>
+            <span><b>{{ f.label }}</b><small class="muted">{{ f.help }}</small></span></label>
+          <div class="chips filter-options">
+            {% for value, label in f.choices %}
+              {% if value == f.from_profile %}
+                <label class="chip-input" title="From your profile"><input type="checkbox" checked disabled><span>{{ label }} · your profile</span></label>
+              {% else %}
+                <label class="chip-input"><input type="checkbox" name="{{ f.key }}" value="{{ value }}" {% if value in f.selected %}checked{% endif %}><span>{{ label }}</span></label>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </fieldset>
+        {% endfor %}
+      </div>
       <div class="row-gap">
         <button class="btn btn-primary btn-lg">{% icon 'zap' 18 %} Find my match</button>
         <span class="muted small">{{ searching_now }} other {{ searching_now|pluralize:"person is,people are" }} searching now</span>
@@ -71,7 +81,7 @@
   <aside class="side-text">
     <h3>How it works</h3>
     <ol class="steps">
-      <li>You're paired with someone whose answers fit you both: “I like” in both directions, age range and the other filters. Under-18s are only ever matched with other under-18s.</li>
+      <li>You're paired with someone who fits you both: “I like” in both directions, age range and any filters you switched on. Under-18s are only ever matched with other under-18s.</li>
       <li>You chat under made-up nicknames. No profiles, no real names.</li>
       <li>After {{ connect_after }} messages each, a Connect button appears. When they accept, the chat moves to your Inbox and your profiles unlock.</li>
       <li>You're never matched with someone you're already connected with, and the same two people won't be matched again for {{ cooldown_days }} days.</li>

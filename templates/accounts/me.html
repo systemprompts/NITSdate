@@ -52,6 +52,9 @@
 
   <p class="muted small center">{{ requests_left }} of {{ per_day }} profile connection requests left today.
     Requests from matchmaking chats are unlimited.</p>
+  {% if not user.is_superuser %}
+  <p class="center"><a class="btn btn-sm btn-danger-ghost" href="{% url 'delete_my_account' %}">{% icon 'trash' 15 %} Delete my account</a></p>
+  {% endif %}
 </div>
 <datalist id="branch-list">{% for b in branch_suggestions %}<option value="{{ b }}">{% endfor %}</datalist>
 {% endblock %}
