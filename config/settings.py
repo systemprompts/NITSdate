@@ -104,7 +104,9 @@ REDIS_URL = os.environ.get("REDIS_URL", "").strip()
 if REDIS_URL:
     def _redis_layer(**options):
         return {"BACKEND": "channels_redis.core.RedisChannelLayer",
-                "CONFIG": {"hosts": [{"address": REDIS_URL, "socket_connect_timeout": 1, **options}],
+                # protocol 2: the server's Redis 5 predates RESP3, which redis-py 8 would ask for
+                "CONFIG": {"hosts": [{"address": REDIS_URL, "socket_connect_timeout": 1, "protocol": 2,
+                                      **options}],
                            "prefix": "nitsdate", "capacity": 200, "expiry": 30}}
     # "publish" is used from page requests: a short timeout so a stuck Redis can't hold a page up
     CHANNEL_LAYERS = {"default": _redis_layer(), "publish": _redis_layer(socket_timeout=2)}
