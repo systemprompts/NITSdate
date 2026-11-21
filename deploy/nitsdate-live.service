@@ -11,10 +11,12 @@ Wants=mariadb.service redis-server.service
 User=ubuntu
 Group=ubuntu
 WorkingDirectory=/home/ubuntu/nitsdate
-# one worker on purpose: the matchmaker runs inside it (two would only duplicate the work)
+# one worker on purpose: the matchmaker runs inside it (two would only duplicate the work).
+# No connection logs and no forwarded client IPs: like the rest of the site, visitors' IP
+# addresses are not written to any log.
 ExecStart=/home/ubuntu/nitsdate/.venv/bin/uvicorn config.asgi:application \
     --host 127.0.0.1 --port 8011 --workers 1 --lifespan on --ws websockets-sansio \
-    --ws-max-size 4096 --no-access-log
+    --ws-max-size 4096 --no-access-log --log-level warning --no-proxy-headers
 Restart=always
 RestartSec=3
 # hardening

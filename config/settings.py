@@ -108,8 +108,11 @@ if REDIS_URL:
                 "CONFIG": {"hosts": [{"address": REDIS_URL, "socket_connect_timeout": 1, "protocol": 2,
                                       **options}],
                            "prefix": "nitsdate", "capacity": 200, "expiry": 30}}
-    # "publish" is used from page requests: a short timeout so a stuck Redis can't hold a page up
-    CHANNEL_LAYERS = {"default": _redis_layer(), "publish": _redis_layer(socket_timeout=2)}
+    # The socket service waits on Redis for up to 5 s at a time (channels_redis BZPOPMIN), so its
+    # read timeout must be longer; redis-py 8 defaults to exactly 5 s, which would drop every idle
+    # socket. "publish" is used from page requests: a short timeout so a stuck Redis can't hold a
+    # page up.
+    CHANNEL_LAYERS = {"default": _redis_layer(socket_timeout=15), "publish": _redis_layer(socket_timeout=2)}
 else:
     CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
 LIVE_WS_URL = os.environ.get("LIVE_WS_URL", "").strip()   # local dev only; pages default to /ws/live/
