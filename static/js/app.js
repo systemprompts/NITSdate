@@ -154,6 +154,59 @@
   Live.on("open", () => loops.forEach((l) => l.run(l.catchUp ? 0 : SAFETY_MS)));
   Live.on("close", () => loops.forEach((l) => l.run(l.fast)));
 
+  /* ---- sounds: a quick two-note pop for a new message or a match, a softer chime for notifications
+     and connection requests. Made with Web Audio, so there are no sound files. Browsers only allow
+     sound once you've tapped, clicked or typed on the page; with several tabs open only one plays.
+     Each device can switch them off on the notifications page. ---- */
+  const Sound = (() => {
+    let ctx = null;
+    const on = () => { try { return localStorage.getItem("sounds") !== "off"; } catch (_) { return true; } };
+    const unlock = () => {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!ctx) ctx = new AC();
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    };
+    ["pointerdown", "keydown", "touchend"].forEach((ev) => document.addEventListener(ev, unlock, { capture: true, passive: true }));
+    const tone = (freq, at, length, type, volume) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain(), t = ctx.currentTime + at;
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(volume, t + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + length);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + length + 0.05);
+    };
+    const sounds = {
+      // two bright notes going up: "pop-pop"
+      message: () => { tone(880, 0, 0.11, "sine", 0.2); tone(1318.5, 0.09, 0.17, "sine", 0.18); },
+      // a soft, lower bell that rings out a little longer
+      notification: () => { tone(587.3, 0, 0.55, "triangle", 0.14); tone(880, 0.13, 0.6, "sine", 0.08); },
+    };
+    const last = {};
+    const play = (kind, force) => {
+      if ((!on() && !force) || !ctx || ctx.state !== "running") return;
+      const now = Date.now();
+      if (now - (last[kind] || 0) < 1500) return;   // one event reported twice still makes one sound
+      last[kind] = now;
+      const go = () => { try { sounds[kind](); } catch (_) {} };
+      if (force) return go();
+      if (navigator.locks) {   // several tabs open: whichever takes the lock plays, the others stay quiet
+        navigator.locks.request("nitsdate-sound-" + kind, { ifAvailable: true }, (lock) =>
+          lock ? (go(), new Promise((done) => setTimeout(done, 1500))) : null);
+      } else {
+        try {
+          if (now - (+localStorage.getItem("sound:" + kind) || 0) < 1500) return;
+          localStorage.setItem("sound:" + kind, now);
+        } catch (_) {}
+        go();
+      }
+    };
+    return { play, unlock, on };
+  })();
+
   /* ---- nav badges: unread messages, connection requests, notifications and (for mods) open
      reports. On the Messages page the list itself reloads when something changed. ---- */
   if (mainnav) {
@@ -182,7 +235,14 @@
       const fresh = new DOMParser().parseFromString(await res.text(), "text/html").querySelector("[data-live-inbox]");
       if (fresh) { live.innerHTML = fresh.innerHTML; live.dataset.version = fresh.dataset.version; }
     };
+    let seen = null;   // the last counts, to hear what's new (the first counts are just the starting point)
     const apply = async (d) => {
+      const now = { messages: d.messages || 0, notifications: d.notifications || 0, requests: d.requests || 0 };
+      if (seen) {
+        if (now.messages > seen.messages) Sound.play("message");
+        else if (now.notifications > seen.notifications || now.requests > seen.requests) Sound.play("notification");
+      }
+      seen = now;
       setBadge("messages", d.messages);
       setBadge("requests", d.requests);
       setBadge("reports", d.reports);
@@ -212,6 +272,19 @@
     }
     document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
   }
+
+  /* ---- sounds on/off for this device (notifications page) ---- */
+  document.querySelectorAll("[data-sound-toggle]").forEach((box) => {
+    box.checked = Sound.on();
+    box.addEventListener("change", () => {
+      try { localStorage.setItem("sounds", box.checked ? "on" : "off"); } catch (_) {}
+      if (box.checked) { Sound.unlock(); setTimeout(() => Sound.play("message", true), 60); }
+    });
+  });
+  document.querySelectorAll("[data-sound-test]").forEach((btn) => btn.addEventListener("click", () => {
+    Sound.unlock();
+    setTimeout(() => Sound.play(btn.dataset.soundTest, true), 60);
+  }));
 
   /* ---- "Any" chip: picking it clears the others, picking another clears it, and it comes back
      when nothing else is picked ---- */
@@ -419,7 +492,10 @@
           const stick = nearBottom();
           const tmp = document.createElement("div");
           tmp.innerHTML = data.html;
-          if (tmp.querySelector(".msg.theirs")) stopTyping();   // their message arrived
+          if (tmp.querySelector(".msg.theirs")) {   // their message arrived
+            stopTyping();
+            Sound.play("message");
+          }
           tmp.querySelectorAll("[data-id]").forEach((node) => {
             if (!list.querySelector('[data-id="' + node.dataset.id + '"]')) {
               list.appendChild(node);
@@ -530,7 +606,10 @@
       try {
         const res = await fetch(searching.dataset.statusUrl, { headers: { "X-Requested-With": "fetch" } });
         const data = await res.json();
-        if (data.status === "matched" && data.url) location.href = data.url;
+        if (data.status === "matched" && data.url) {
+          Sound.play("message");
+          setTimeout(() => { location.href = data.url; }, 600);
+        }
         else if (data.status !== "searching") location.reload();
       } catch (_) {}
     };
@@ -543,7 +622,8 @@
 
   /* ---- a matchmaking search found someone: go there from the match page, or say so elsewhere ---- */
   Live.on("match", (d) => {
-    if (searching || !d.url) { if (d.url) location.href = d.url; return; }
+    Sound.play("message");
+    if (searching || !d.url) { if (d.url) setTimeout(() => { location.href = d.url; }, 600); return; }
     if (chat && chat.dataset.conv && d.url.endsWith("/" + chat.dataset.conv + "/")) return;
     let stack = document.querySelector(".flash-stack");
     if (!stack) {

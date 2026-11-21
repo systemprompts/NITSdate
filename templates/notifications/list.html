@@ -37,4 +37,18 @@
     <div><button class="btn btn-primary">Save</button></div>
   </form>
 </section>
+
+<section class="sheet narrow-wide" style="margin-top:1.5rem">
+  <h2>Sounds</h2>
+  <div class="stack">
+    <label class="check"><input type="checkbox" data-sound-toggle checked>
+      <span><b>Play sounds on this device</b><small class="muted">A pop for new messages and matches, a soft chime
+        for notifications and connection requests. Saved in this browser only, so set it on each device.</small></span></label>
+    <div class="row-gap">
+      <button type="button" class="btn btn-sm" data-sound-test="message">{% icon 'chat' 15 %} Play message sound</button>
+      <button type="button" class="btn btn-sm" data-sound-test="notification">{% icon 'bell' 15 %} Play notification sound</button>
+    </div>
+    <small class="muted">Browsers only allow sound after you've tapped or clicked somewhere on the page.</small>
+  </div>
+</section>
 {% endblock %}
