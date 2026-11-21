@@ -6,6 +6,7 @@ from datetime import timedelta
 from django.utils import timezone
 
 from accounts.models import Block
+from live.publish import push_badges
 
 from .models import Notification
 
@@ -34,8 +35,10 @@ def notify(recipient, actor, kind, post, comment=None):
 
 def withdraw_upvote(recipient, actor, kind, post, comment=None):
     """The vote was taken back before they saw it: drop the notification too."""
-    Notification.objects.filter(recipient=recipient, actor=actor, kind=kind, post=post, comment=comment,
-                                read_at=None).delete()
+    removed, _ = Notification.objects.filter(recipient=recipient, actor=actor, kind=kind, post=post,
+                                             comment=comment, read_at=None).delete()
+    if removed:
+        push_badges(recipient.pk)
 
 
 def unread_count(user):
@@ -68,5 +71,6 @@ def grouped(user, limit=150):
 
 def mark_all_read(user):
     now = timezone.now()
-    Notification.objects.filter(recipient=user, read_at=None).update(read_at=now)
+    if Notification.objects.filter(recipient=user, read_at=None).update(read_at=now):
+        push_badges(user.pk)
     Notification.objects.filter(recipient=user, read_at__lt=now - timedelta(days=KEEP_READ_DAYS)).delete()

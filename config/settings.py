@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "matchmaking",
     "moderation",
     "notifications",
+    "live",
 ]
 
 MIDDLEWARE = [
@@ -94,6 +95,23 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"   # only the WebSocket service (/ws/) runs on ASGI
+
+# ---- live updates over WebSockets (see live/) -----------------------------------------------
+# gunicorn publishes "something changed" through Redis to the WebSocket service. Without REDIS_URL
+# (tests, local dev) an in-process layer is used and pages fall back to asking on a timer.
+REDIS_URL = os.environ.get("REDIS_URL", "").strip()
+if REDIS_URL:
+    def _redis_layer(**options):
+        return {"BACKEND": "channels_redis.core.RedisChannelLayer",
+                "CONFIG": {"hosts": [{"address": REDIS_URL, "socket_connect_timeout": 1, **options}],
+                           "prefix": "nitsdate", "capacity": 200, "expiry": 30}}
+    # "publish" is used from page requests: a short timeout so a stuck Redis can't hold a page up
+    CHANNEL_LAYERS = {"default": _redis_layer(), "publish": _redis_layer(socket_timeout=2)}
+else:
+    CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
+LIVE_WS_URL = os.environ.get("LIVE_WS_URL", "").strip()   # local dev only; pages default to /ws/live/
+LIVE_MATCHER = env_bool("LIVE_MATCHER", True)             # background matchmaking in the WebSocket service
 
 DATABASES = {
     "default": {

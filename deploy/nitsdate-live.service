@@ -1,0 +1,26 @@
+# WebSocket service: live badges, chat and match updates (/ws/, see live/), plus the background
+# matchmaker. Regular pages stay on nitsdate.service (gunicorn). If this stops, pages fall back
+# to asking on a timer, as before. Needs REDIS_URL in .env. Install:
+#   sudo cp deploy/nitsdate-live.service /etc/systemd/system/ && sudo systemctl enable --now nitsdate-live
+[Unit]
+Description=nitsdate live updates (uvicorn, WebSockets)
+After=network.target mariadb.service redis-server.service
+Wants=mariadb.service redis-server.service
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/nitsdate
+# one worker on purpose: the matchmaker runs inside it (two would only duplicate the work)
+ExecStart=/home/ubuntu/nitsdate/.venv/bin/uvicorn config.asgi:application \
+    --host 127.0.0.1 --port 8011 --workers 1 --lifespan on --ws websockets-sansio \
+    --ws-max-size 4096 --no-access-log
+Restart=always
+RestartSec=3
+# hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

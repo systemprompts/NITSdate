@@ -62,11 +62,99 @@
     if (!el.classList.contains("flash-error")) setTimeout(() => el.remove(), 6000);
   });
 
-  /* ---- live badges: unread messages, connection requests and (for mods) open reports are asked for
-     every 8 seconds while the page is visible, and right away when you come back to the tab. On the
-     Messages page the list itself is refreshed when something changed. ---- */
+  /* ---- live updates: one WebSocket per tab (live/consumers.py). The server pushes the badge
+     counts and short "look again" signals (a chat changed, you've got a match); pages then fetch
+     the details through the normal views. While the socket is up the timers below are only a
+     slow safety net; when it can't connect they ask on their usual beat. ---- */
   const mainnav = document.querySelector(".mainnav[data-badges-url]");
   const topbar = document.querySelector(".topbar");
+  const SAFETY_MS = 60000;
+  const Live = (() => {
+    const handlers = {};
+    let ws = null, up = false, stopped = !mainnav || !("WebSocket" in window);
+    let retries = 0, retryTimer = null, pingTimer = null, pongTimer = null;
+    const url = mainnav && (mainnav.dataset.liveUrl ||
+      (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/live/");
+    const emit = (type, data) => (handlers[type] || []).forEach((fn) => { try { fn(data); } catch (_) {} });
+    const closed = (code) => {
+      const was = up;
+      up = false; ws = null;
+      clearInterval(pingTimer); clearTimeout(pongTimer);
+      if (was) emit("close");
+      if (code === 4401) { stopped = true; return; }   // signed out, or no longer allowed in
+      retry();
+    };
+    const drop = () => {   // a dead network can take ages to report the close: don't wait for it
+      const old = ws;
+      if (!old) return;
+      old.onclose = old.onmessage = null;
+      try { old.close(); } catch (_) {}
+      closed(1006);
+    };
+    const ping = () => {
+      if (!ws || ws.readyState !== 1) return;
+      ws.send(JSON.stringify({ t: "ping", visible: !document.hidden }));
+      clearTimeout(pongTimer);
+      pongTimer = setTimeout(drop, 10000);   // no answer within 10 s: treat it as dropped
+    };
+    const connect = () => {
+      clearTimeout(retryTimer);
+      if (stopped || ws) return;
+      try { ws = new WebSocket(url); } catch (_) { ws = null; return retry(); }
+      ws.onopen = () => {
+        up = true; retries = 0;
+        clearInterval(pingTimer); pingTimer = setInterval(ping, 30000);
+        emit("open");
+      };
+      ws.onmessage = (e) => {
+        let d;
+        try { d = JSON.parse(e.data); } catch (_) { return; }
+        if (d.t === "pong") clearTimeout(pongTimer);
+        else emit(d.t, d);
+      };
+      ws.onclose = (e) => closed(e.code);
+    };
+    const retry = () => {   // 1 s, 2 s, 4 s ... up to 30 s, spread out so tabs don't all retry at once
+      const wait = Math.min(30000, 1000 * 2 ** retries++) * (0.5 + Math.random() / 2);
+      retryTimer = setTimeout(connect, wait);
+    };
+    // phones put background tabs to sleep: reconnect (or say hello) as soon as the tab is back
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) return;
+      if (ws) ping(); else if (!stopped) { retries = 0; connect(); }
+    });
+    return {
+      on(type, fn) { (handlers[type] = handlers[type] || []).push(fn); },
+      get up() { return up; },
+      start: connect,
+    };
+  })();
+
+  // run `fn` every `fast` ms while the socket is down and every SAFETY_MS while it's up. With
+  // catchUp it also runs straight away whenever the socket (re)connects, for anything missed
+  const loops = [];
+  const every = (fn, fast, { first, catchUp = true } = {}) => {
+    let timer = null;
+    const loop = {
+      fast,
+      catchUp,
+      run(ms) {
+        clearTimeout(timer);
+        timer = setTimeout(async () => {
+          try { await fn(); } catch (_) { /* offline for a moment */ }
+          loop.run(Live.up ? SAFETY_MS : fast);
+        }, ms);
+      },
+    };
+    loops.push(loop);
+    loop.run(first === undefined ? fast : first);
+    return loop;
+  };
+  Live.on("open", () => loops.forEach((l) => l.run(l.catchUp ? 0 : SAFETY_MS)));
+  Live.on("close", () => loops.forEach((l) => l.run(l.fast)));
+
+  /* ---- nav badges: unread messages, connection requests, notifications and (for mods) open
+     reports. On the Messages page the list itself reloads when something changed. ---- */
   if (mainnav) {
     const baseTitle = document.title.replace(/^\(\d+\)\s*/, "");
     const setBadge = (key, n) => {
@@ -85,7 +173,6 @@
       else if (!on && dot) dot.remove();
     };
     const live = document.querySelector("[data-live-inbox]");
-    let busy = false;
     const reloadInbox = async () => {
       const url = new URL(location.href);
       url.searchParams.set("tab", live.dataset.tab);   // stay on the tab you're looking at
@@ -94,27 +181,30 @@
       const fresh = new DOMParser().parseFromString(await res.text(), "text/html").querySelector("[data-live-inbox]");
       if (fresh) { live.innerHTML = fresh.innerHTML; live.dataset.version = fresh.dataset.version; }
     };
+    const apply = async (d) => {
+      setBadge("messages", d.messages);
+      setBadge("requests", d.requests);
+      setBadge("reports", d.reports);
+      setBadge("notifications", d.notifications);
+      setDot(d.searching);
+      const waiting = d.messages + d.requests + (d.notifications || 0);
+      document.title = (waiting ? `(${waiting}) ` : "") + baseTitle;   // background tabs too
+      // a hidden Messages tab catches up when you come back to it (see below)
+      if (live && !document.hidden && d.inbox !== live.dataset.version) await reloadInbox();
+    };
+    let busy = false;
     const refresh = async () => {
       if (document.hidden || busy) return;
       busy = true;
       try {
         const res = await fetch(mainnav.dataset.badgesUrl, { headers: { "X-Requested-With": "fetch" }, credentials: "same-origin" });
         const type = res.headers.get("content-type") || "";
-        if (res.ok && type.includes("json")) {
-          const d = await res.json();
-          setBadge("messages", d.messages);
-          setBadge("requests", d.requests);
-          setBadge("reports", d.reports);
-          setBadge("notifications", d.notifications);
-          setDot(d.searching);
-          const waiting = d.messages + d.requests + (d.notifications || 0);
-          document.title = (waiting ? `(${waiting}) ` : "") + baseTitle;
-          if (live && d.inbox !== live.dataset.version) await reloadInbox();
-        }
+        if (res.ok && type.includes("json")) await apply(await res.json());
       } catch (_) { /* offline for a moment: try again on the next beat */ }
       busy = false;
     };
-    setInterval(refresh, 8000);
+    Live.on("badges", apply);
+    every(refresh, 8000, { catchUp: false });   // the socket sends fresh counts when it connects
     document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
   }
 
@@ -270,8 +360,10 @@
 
     const grow = () => { if (!input) return; input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 140) + "px"; };
 
+    // fetches what's new in this chat (and marks it read, so never from a hidden tab)
+    let again = false;
     async function poll() {
-      if (busy) return;
+      if (busy) { again = true; return; }   // a signal came in mid-fetch: fetch once more after
       busy = true;
       try {
         const res = await fetch(chat.dataset.pollUrl + "?after=" + lastId, { headers: { "X-Requested-With": "fetch" } });
@@ -305,9 +397,13 @@
         /* offline – try again next tick */
       } finally {
         busy = false;
+        if (again) { again = false; poll(); }
       }
     }
-    setInterval(() => { if (!document.hidden) poll(); }, 3000);
+    Live.on("chat", (d) => {
+      if (String(d.conv) === chat.dataset.conv && !document.hidden) poll();   // hidden: caught up on return
+    });
+    every(() => { if (!document.hidden) return poll(); }, 3000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 
     if (form) {
@@ -389,9 +485,33 @@
         else if (data.status !== "searching") location.reload();
       } catch (_) {}
     };
-    // a new search shows "matching" for a few seconds; the first check comes right after that
-    setTimeout(() => { check(); setInterval(check, 4000); }, +searching.dataset.firstCheck || 4000);
+    // a new search shows "matching" for a few seconds; without a live connection the first check
+    // comes right after that. With one, the match arrives as a push (handled below).
+    every(check, 4000, { first: +searching.dataset.firstCheck || 4000 });
     tick();
     setInterval(tick, 30000);
   }
+
+  /* ---- a matchmaking search found someone: go there from the match page, or say so elsewhere ---- */
+  Live.on("match", (d) => {
+    if (searching || !d.url) { if (d.url) location.href = d.url; return; }
+    if (chat && chat.dataset.conv && d.url.endsWith("/" + chat.dataset.conv + "/")) return;
+    let stack = document.querySelector(".flash-stack");
+    if (!stack) {
+      stack = document.createElement("div");
+      stack.className = "flash-stack";
+      stack.setAttribute("role", "status");
+      document.querySelector("main")?.prepend(stack);
+    }
+    const note = document.createElement("div");
+    note.className = "flash flash-success";
+    note.innerHTML = '<span>It\'s a match! <a></a></span><button class="flash-x" aria-label="Dismiss">✕</button>';
+    const link = note.querySelector("a");
+    link.href = d.url;
+    link.textContent = "Open the chat";
+    note.querySelector(".flash-x").addEventListener("click", () => note.remove());
+    stack.prepend(note);
+  });
+
+  Live.start();
 })();

@@ -1,5 +1,6 @@
-"""Matching runs whenever a searcher starts or polls – no background worker
-needed, which keeps it compatible with serverless hosting."""
+"""Matching. The WebSocket service tries new searches every couple of seconds (live/matcher.py);
+pages also try when a search starts and while they wait without a socket. Both are safe at once:
+try_match locks the two searches before pairing them."""
 from datetime import timedelta
 
 from django.conf import settings
@@ -10,14 +11,20 @@ from django.utils import timezone
 from accounts.privacy import blocked_ids, connected_ids
 from chat.models import Conversation
 from chat.services import create_match_conversation, member_q
+from live.publish import push_badges, push_match
 
 from .models import MatchSession
+
+PENDING = "match_pending"   # session key: the search this browser is showing the "matching" screen for
 
 
 def expire_stale():
     now = timezone.now()
-    MatchSession.objects.filter(status=MatchSession.SEARCHING, expires_at__lte=now).update(
-        status=MatchSession.EXPIRED, ended_at=now)
+    stale = MatchSession.objects.filter(status=MatchSession.SEARCHING, expires_at__lte=now)
+    users = list(stale.values_list("user_id", flat=True))
+    if users:
+        stale.update(status=MatchSession.EXPIRED, ended_at=now)
+        push_badges(*users)   # their "searching" dot goes out
 
 
 def excluded_partner_ids(user):
@@ -118,6 +125,8 @@ def try_match(session):
                     status=MatchSession.MATCHED, matched_with=cand.user, conversation=conv, ended_at=now)
                 MatchSession.objects.filter(pk=cand.pk).update(
                     status=MatchSession.MATCHED, matched_with=session.user, conversation=conv, ended_at=now)
+                push_match(session.user_id, conv.pk)   # sent once this commits
+                push_match(cand.user_id, conv.pk)
         except OperationalError:
             break  # lock contention – the next poll will try again
         session.refresh_from_db()

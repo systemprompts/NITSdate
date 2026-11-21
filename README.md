@@ -75,6 +75,12 @@ Tested layout: Ubuntu, MariaDB 10.5+ (or MySQL 8+), nginx, Python 3.12.
    `deploy/nginx-nitsdate-cloudflare.conf` (Origin CA certificate, `deploy/cloudflare-ips.sh`).
 6. After your first Google sign-in: `python manage.py make_admin <your email>`.
 7. Nightly backups: add `deploy/backup.sh` to cron (see the comment at the top of the file).
+8. Live updates (optional but recommended): install Redis (`sudo apt install redis-server`), add
+   `REDIS_URL=redis://127.0.0.1:6379/3` to `.env`, then
+   `sudo cp deploy/nitsdate-live.service /etc/systemd/system/ && sudo systemctl enable --now nitsdate-live`.
+   The nginx files already send `/ws/` to it. It pushes badge counts, new chat messages and matches to
+   open pages over a WebSocket and runs the background matchmaker. Without it, pages ask on a timer
+   instead, and matches happen while someone has the match page open.
 
 `python manage.py check --deploy` should only warn about HSTS subdomains/preload, which are off on purpose
 until the final domain is settled.

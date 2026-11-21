@@ -14,6 +14,7 @@ from accounts.models import Block, Connection, ConnectionRequest, GalleryPhoto, 
 from chat.models import Conversation, Message, PriorityRequest
 from chat.services import system_message
 from feed.models import Comment, Post
+from live.publish import close_user
 from matchmaking.models import MatchSession
 from notifications.models import Notification
 
@@ -93,6 +94,7 @@ def delete_account(user, *, remove_content=False):
         user.is_active = user.is_staff = user.is_superuser = False   # inactive users are signed out everywhere
         user.set_unusable_password()
         user.save()
+        close_user(user.pk)   # its open pages are disconnected once this commits
 
         def remove_files():
             for storage, name in files:

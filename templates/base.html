@@ -29,7 +29,7 @@
 <header class="topbar">
   <div class="topbar-inner">
     <a class="logo" href="{% url 'home' %}">nits<span class="logo-heart">{% icon 'heart' 18 %}</span>date</a>
-    <nav class="mainnav" aria-label="Main" data-badges-url="{% url 'nav_badges' %}">
+    <nav class="mainnav" aria-label="Main" data-badges-url="{% url 'nav_badges' %}"{% if LIVE_WS_URL %} data-live-url="{{ LIVE_WS_URL }}"{% endif %}>
       <a href="{% url 'home' %}" class="{% if p == '/' or '/posts/' in p %}active{% endif %}">{% icon 'home' %}<span>Feed</span></a>
       <a href="{% url 'match' %}" class="{% if p|slice:':7' == '/match/' %}active{% endif %}" data-dot="searching">{% icon 'zap' %}<span>Match</span>{% if nav_searching %}<i class="dot pulse" title="Searching"></i>{% endif %}</a>
       <a href="{% url 'inbox' %}" class="{% if p|slice:':10' == '/messages/' %}active{% endif %}" data-badge="messages">{% icon 'chat' %}<span>Messages</span>{% if nav_unread_total %}<b class="badge">{{ nav_unread_total }}</b>{% endif %}</a>

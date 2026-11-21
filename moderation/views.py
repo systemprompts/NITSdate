@@ -21,6 +21,7 @@ from accounts.privacy import BLOCKED, SELF, display_name, field_visible, get_pro
 from accounts.profile_fields import PRIVACY_LABELS
 from chat.models import Conversation, Message
 from feed.models import Comment, Post
+from live.publish import push_mods
 from matchmaking.models import MatchSession
 
 from accounts.adapters import email_allowed, may_sign_in
@@ -284,8 +285,9 @@ def _close(report, mod, status, note):
         same = same.filter(message_id=report.message_id)
     else:
         return
-    same.update(status=status, handled_by=mod, handled_at=report.handled_at,
-                resolution_note=f"Closed together with report #{report.pk}.")
+    if same.update(status=status, handled_by=mod, handled_at=report.handled_at,
+                   resolution_note=f"Closed together with report #{report.pk}."):
+        push_mods()
 
 
 def _remove_content(report):

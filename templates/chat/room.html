@@ -3,7 +3,7 @@
 {% block body_class %}chat-page{% endblock %}
 {% block main_class %}chat-container{% endblock %}
 {% block content %}
-<div class="chat tier-{{ conv.tier }}" id="chat"
+<div class="chat tier-{{ conv.tier }}" id="chat" data-conv="{{ conv.pk }}"
      data-poll-url="{% url 'chat_poll' conv.pk %}" data-send-url="{% url 'chat_send' conv.pk %}"
      data-last-id="{{ last_id }}" data-tier="{{ conv.tier }}" data-active="{{ conv.is_active|yesno:'1,0' }}"
      data-blocked="{{ msg_blocked|yesno:'1,0' }}">

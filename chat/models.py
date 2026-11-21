@@ -57,6 +57,8 @@ class Conversation(models.Model):
         if message_id > getattr(self, field):
             setattr(self, field, message_id)
             Conversation.objects.filter(pk=self.pk).update(**{field: message_id})
+            from live.publish import push_badges
+            push_badges(user.pk)   # your other open tabs drop the unread count too
 
     def nickname_for(self, user):
         """Blind name used inside a matchmaking chat so the partner can't look

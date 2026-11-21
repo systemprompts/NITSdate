@@ -4,8 +4,8 @@ from .models import ConnectionRequest
 
 
 def badge_counts(user):
-    """The numbers on the nav badges. Pages render them, and every open page asks for them again
-    every few seconds (chat.views.badges), so they stay current without a refresh."""
+    """The numbers on the nav badges. Pages render them; after that the WebSocket service pushes
+    them when they change (live/consumers.py), or the page asks chat.views.badges if it can't connect."""
     from chat.services import unread_by_conversation
     from matchmaking.models import MatchSession
     from moderation.models import Report
@@ -30,7 +30,7 @@ def badge_counts(user):
 
 def nav(request):
     user = request.user
-    ctx = {"DEV_LOGIN": settings.DEV_LOGIN}
+    ctx = {"DEV_LOGIN": settings.DEV_LOGIN, "LIVE_WS_URL": settings.LIVE_WS_URL}
     if not user.is_authenticated or not user.has_profile:
         return ctx
     from moderation.permissions import is_admin, is_mod, request_limit, restriction_for

@@ -17,6 +17,8 @@ from accounts.images import process_image, serve_image
 from accounts.models import Block, ConnectionRequest
 from accounts.privacy import display_name, messages_blocked, name_is_hidden, visible_gender
 
+from matchmaking.models import MatchSession
+from matchmaking.services import PENDING
 from moderation.permissions import restriction_for
 
 from . import services
@@ -82,7 +84,8 @@ def inbox(request):
 
 @login_required
 def badges(request):
-    """Polled by every open page so the nav badges and the Messages list update on their own."""
+    """Asked by open pages that couldn't open a live connection (and once in a while by those that
+    did), so the nav badges and the Messages list update on their own."""
     from accounts.context_processors import badge_counts
     data = badge_counts(request.user)
     data["inbox"] = services.inbox_version(request.user, data["messages"])
@@ -128,6 +131,12 @@ def room(request, pk):
     last_id = conv.messages.order_by("-id").values_list("id", flat=True).first() or 0
     if last_id:
         conv.mark_read(me, last_id)
+    # arrived straight from the "matching" screen (the live update sends the page here): the
+    # search is settled, so /match/ mustn't bounce back into this chat later
+    pending = request.session.get(PENDING)
+    if pending and MatchSession.objects.filter(pk=pending, user=me, conversation=conv).exists():
+        request.session.pop(PENDING, None)
+        messages.success(request, "It's a match! Say hi 👋")
     return render(request, "chat/room.html", {
         "conv": conv,
         "other": other,

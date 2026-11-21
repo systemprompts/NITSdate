@@ -14,7 +14,9 @@ from accounts.profile_fields import GENDER_CHOICES, LOOKING_FOR_CHOICES, PERSONA
 from moderation.permissions import restriction_for
 
 from .models import MatchSession
-from .services import expire_stale, try_match
+from live.publish import push_badges
+
+from .services import PENDING, expire_stale, try_match
 
 FILTERS = [
     ("looking_for", "Here for", LOOKING_FOR_CHOICES,
@@ -37,9 +39,6 @@ def age_bounds(profile):
 def _current(user):
     expire_stale()
     return MatchSession.objects.active().filter(user=user).first()
-
-
-PENDING = "match_pending"   # session key: the search this browser is showing the "matching" screen for
 
 
 def _first_check_ms(current):
@@ -134,6 +133,7 @@ def start(request):
         user=me, min_age=min_age, max_age=max_age,
         expires_at=timezone.now() + timedelta(hours=settings.MATCH_SEARCH_HOURS), **chosen)
     request.session[PENDING] = session.pk
+    push_badges(me.pk)             # the "searching" dot in your other tabs
     session = try_match(session)   # waits for MATCH_REVEAL_SECONDS, so normally the searching page shows first
     if session.status == MatchSession.MATCHED:
         request.session.pop(PENDING, None)
@@ -150,6 +150,7 @@ def cancel(request):
         current.status = MatchSession.CANCELLED
         current.ended_at = timezone.now()
         current.save(update_fields=["status", "ended_at"])
+        push_badges(request.user.pk)
         messages.info(request, "Matchmaking cancelled.")
     return redirect("match")
 
