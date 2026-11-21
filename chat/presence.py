@@ -13,9 +13,11 @@ from .models import Conversation
 ACTIVE_NOW = timedelta(minutes=2)   # last_seen is written at most once a minute while a tab is open and visible
 
 
-def shows_presence(conv):
-    return (conv.tier == Conversation.PRIORITY and conv.is_active
-            and not messages_blocked(conv.user1_id, conv.user2_id))
+def shows_presence(conv, blocked=None):
+    """Only in an active Priority chat without a message block. Pass `blocked` if it's known."""
+    if conv.tier != Conversation.PRIORITY or not conv.is_active:
+        return False
+    return not (messages_blocked(conv.user1_id, conv.user2_id) if blocked is None else blocked)
 
 
 def presence(user, now=None):

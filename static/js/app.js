@@ -206,6 +206,10 @@
     };
     Live.on("badges", apply);
     every(refresh, 8000, { catchUp: false });   // the socket sends fresh counts when it connects
+    // the Priority list shows "Active now / Active 5 minutes ago": keep it current while it's open
+    if (live && live.dataset.tab === "priority") {
+      every(() => { if (!document.hidden) return reloadInbox(); }, 60000, { catchUp: false });
+    }
     document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
   }
 
@@ -318,8 +322,10 @@
     const draftKey = "draft:" + chat.dataset.sendUrl;
     // Priority chats only: "Active now / Active 5 minutes ago", "typing…" and "Seen"
     const presenceEl = document.getElementById("presence");
+    const presenceLive = document.getElementById("presence-live");
     const receiptEl = document.getElementById("receipt");
     let typingTimer = null;
+    const announce = (text) => { if (presenceLive) presenceLive.textContent = text; };
     const stopTyping = () => {
       if (!presenceEl) return;
       clearTimeout(typingTimer);
@@ -329,6 +335,7 @@
     const showPresence = (p) => {
       if (!presenceEl || !p) return;
       presenceEl.dataset.text = p.text || "View profile";
+      if (presenceEl.classList.contains("online") !== !!p.now) announce(p.now ? "Active now" : "Offline");
       presenceEl.classList.toggle("online", !!p.now);
       if (!presenceEl.classList.contains("typing")) presenceEl.textContent = presenceEl.dataset.text;
     };
@@ -339,6 +346,7 @@
     };
     Live.on("typing", (d) => {
       if (!presenceEl || String(d.conv) !== chat.dataset.conv) return;
+      if (!presenceEl.classList.contains("typing")) announce("typing");
       presenceEl.classList.add("typing");
       presenceEl.textContent = "typing…";
       clearTimeout(typingTimer);
@@ -436,6 +444,7 @@
       if (String(d.conv) === chat.dataset.conv && !document.hidden) poll();   // hidden: caught up on return
     });
     every(() => { if (!document.hidden) return poll(); }, 3000);
+    if (presenceEl && !document.hidden) poll();   // Priority: this marks it read, so "Seen" means seen
     document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 
     if (form) {

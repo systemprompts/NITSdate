@@ -20,7 +20,8 @@
       <div class="grow">
         <a href="{% url 'profile' other.pk %}"><b>{{ title }}{% if gender %}&nbsp;{% gender_mark gender %}{% endif %} {% hidden_mark name_hidden %}</b></a>
         {% if presence %}
-          <small class="muted presence {% if presence.now %}online{% endif %}" id="presence" data-text="{{ presence.text|default:'View profile' }}" aria-live="polite">{{ presence.text|default:"View profile" }}</small>
+          <small class="muted presence {% if presence.now %}online{% endif %}" id="presence" data-text="{{ presence.text|default:'View profile' }}">{{ presence.text|default:"View profile" }}</small>
+          <span class="sr-only" id="presence-live" aria-live="polite"></span>
         {% else %}
           <small class="muted">View profile</small>
         {% endif %}

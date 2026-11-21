@@ -63,8 +63,32 @@ class PriorityPresenceTests(TestCase):
         self.assertEqual(self.client.get(poll + "?after=0").json()["receipt"], "Sent")
         other = self.client_class()
         other.force_login(self.b)
-        other.get(reverse("chat_room", args=[self.conv.pk]))          # they open the chat
+        # loading the page isn't seeing it (it may be a background tab) ...
+        page = other.get(reverse("chat_room", args=[self.conv.pk]))
+        self.assertEqual(self.client.get(poll + "?after=0").json()["receipt"], "Sent")
+        # ... its first poll, which only runs while the tab is visible, is
+        other.get(poll + f"?after={page.context['last_id']}")
         self.assertEqual(self.client.get(poll + "?after=0").json()["receipt"], "Seen")
         # once they reply, there's nothing to show under your message
         Message.objects.create(conversation=self.conv, sender=self.b, stage=self.conv.tier, text="hey")
         self.assertEqual(self.client.get(poll + "?after=0").json()["receipt"], "")
+
+    def test_poll_never_marks_past_the_newest_message(self):
+        msg = Message.objects.create(conversation=self.conv, sender=self.b, stage=self.conv.tier, text="hey")
+        self.client.get(reverse("chat_poll", args=[self.conv.pk]) + "?after=999999999")
+        self.conv.refresh_from_db()
+        self.assertEqual(self.conv.last_read_id(self.a), msg.pk)
+
+    def test_read_position_never_moves_back(self):
+        first = Message.objects.create(conversation=self.conv, sender=self.b, stage=self.conv.tier, text="1")
+        second = Message.objects.create(conversation=self.conv, sender=self.b, stage=self.conv.tier, text="2")
+        stale = Conversation.objects.get(pk=self.conv.pk)   # loaded before the newer read lands
+        Conversation.objects.get(pk=self.conv.pk).mark_read(self.a, second.pk)
+        stale.mark_read(self.a, first.pk)
+        self.assertEqual(Conversation.objects.get(pk=self.conv.pk).last_read_id(self.a), second.pk)
+
+    def test_other_chats_still_mark_read_on_open(self):
+        Conversation.objects.filter(pk=self.conv.pk).update(tier=Conversation.INBOX)
+        msg = Message.objects.create(conversation=self.conv, sender=self.b, stage=Conversation.INBOX, text="yo")
+        self.client.get(reverse("chat_room", args=[self.conv.pk]))
+        self.assertEqual(Conversation.objects.get(pk=self.conv.pk).last_read_id(self.a), msg.pk)

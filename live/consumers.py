@@ -14,6 +14,7 @@ import asyncio
 import json
 import time
 import weakref
+from collections import OrderedDict
 from datetime import timedelta
 
 from channels.db import database_sync_to_async
@@ -29,7 +30,9 @@ BADGE_DELAY = 0.25          # one recount for a burst of signals (connecting sen
 SEEN_EVERY = 60             # seconds between last_seen writes, like accounts.middleware.LastSeenMiddleware
 REJOIN_EVERY = 30 * 60      # channels_redis forgets group members after a day
 TYPING_EVERY = 2            # forward at most one "typing" per chat this often
-PEER_FOR = 60               # how long a typing check (Priority chat, no block) is trusted
+PEER_FOR = 15               # how long a typing check (Priority chat, no block) is trusted
+LOOKUP_EVERY = 1            # at most one typing check per socket per second, whatever chat it names
+TYPING_CHATS = 4            # typing checks remembered per socket (one person types in a few chats at most)
 
 
 def db(func):
@@ -165,21 +168,29 @@ class LiveConsumer(AsyncJsonWebsocketConsumer):
             await self._join()
 
     async def _typing(self, conv_id):
+        """Pass "typing" on to the other person of this Priority chat. Checks are cached per chat
+        for a short while, and a socket can't make more than one check a second, so naming
+        chat after chat can't turn into a flood of database queries."""
         if not isinstance(conv_id, int) or isinstance(conv_id, bool):
             return
         now = time.monotonic()
-        if not hasattr(self, "typing_sent"):
-            self.typing_sent, self.peers = {}, {}
-        sent = self.typing_sent
-        if now - sent.get(conv_id, 0) < TYPING_EVERY:
+        if not hasattr(self, "typing"):
+            self.typing = OrderedDict()   # conv id -> {"peer", "checked", "sent"}, newest last
+            self.looked_up = None
+        entry = self.typing.get(conv_id)
+        if entry is None or now - entry["checked"] >= PEER_FOR:
+            if self.looked_up is not None and now - self.looked_up < LOOKUP_EVERY:
+                return
+            self.looked_up = now
+            entry = {"peer": await typing_peer(self.user_id, conv_id), "checked": now, "sent": None}
+            self.typing[conv_id] = entry
+            while len(self.typing) > TYPING_CHATS:
+                self.typing.popitem(last=False)
+        self.typing.move_to_end(conv_id)
+        if not entry["peer"] or (entry["sent"] is not None and now - entry["sent"] < TYPING_EVERY):
             return
-        peer, checked = self.peers.get(conv_id, (None, 0))
-        if now - checked >= PEER_FOR:
-            peer = await typing_peer(self.user_id, conv_id)
-            self.peers[conv_id] = (peer, now)
-        if peer:
-            sent[conv_id] = now
-            await self.channel_layer.group_send(user_group(peer), {"type": "live.typing", "conv": conv_id})
+        entry["sent"] = now
+        await self.channel_layer.group_send(user_group(entry["peer"]), {"type": "live.typing", "conv": conv_id})
 
     # ---- signals from live.publish -------------------------------------------------------
 
@@ -190,6 +201,9 @@ class LiveConsumer(AsyncJsonWebsocketConsumer):
         self._badges_soon()
 
     async def live_chat(self, event):
+        # the chat changed (maybe a block): check again before passing on more "typing"
+        if hasattr(self, "typing"):
+            self.typing.pop(event["conv"], None)
         await self.send_json({"t": "chat", "conv": event["conv"]})
         self._badges_soon()
 

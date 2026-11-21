@@ -95,11 +95,11 @@ def badges(request):
     return JsonResponse(data)
 
 
-def _panel(request, conv):
+def _panel(request, conv, blocked):
     """Action panel (Connect / Set priority / Accept ...). Rendered with the
     request so its forms get CSRF tokens."""
     me = request.user
-    if messages_blocked(conv.user1_id, conv.user2_id):
+    if blocked:
         return "", "blocked"
     ctx = {"conv": conv, "me": me}
     if conv.tier == Conversation.MATCH:
@@ -130,9 +130,13 @@ def room(request, pk):
     present = set(conv.messages.filter(stage__in=conv.archived_stages()).values_list("stage", flat=True).distinct())
     archived = [{"stage": s, "label": STAGE_ARCHIVE_LABELS[s], "count": stage_counts.get(s, 0)}
                 for s in conv.archived_stages() if s in present]
-    panel_html, panel_key = _panel(request, conv)
+    blocked = messages_blocked(conv.user1_id, conv.user2_id)
+    panel_html, panel_key = _panel(request, conv, blocked)
     last_id = conv.messages.order_by("-id").values_list("id", flat=True).first() or 0
-    if last_id:
+    live_presence = shows_presence(conv, blocked)
+    # In a Priority chat reading is shown as "Seen", so the page marks it read itself once it's
+    # visible (its first poll); a chat opened in a background tab mustn't say "Seen" yet.
+    if last_id and not live_presence:
         conv.mark_read(me, last_id)
     # arrived straight from the "matching" screen (the live update sends the page here): the
     # search is settled, so /match/ mustn't bounce back into this chat later
@@ -155,11 +159,11 @@ def room(request, pk):
         "has_earlier": has_earlier,
         "panel_html": panel_html,
         "panel_key": panel_key,
-        "msg_blocked": messages_blocked(me, other),
+        "msg_blocked": blocked,
         "no_messaging": restriction_for(me).no_messaging,
         # Priority chats: "Active now / Active 5 minutes ago", "typing…" and "Seen"
-        "presence": presence(other) if shows_presence(conv) else None,
-        "receipt": receipt(conv, me) if shows_presence(conv) else "",
+        "presence": presence(other) if live_presence else None,
+        "receipt": receipt(conv, me) if live_presence else "",
         "my_block": Block.objects.filter(blocker=me, blocked=other).first(),
         "tier_label": TAB_LABELS[conv.tier],
     })
@@ -196,17 +200,22 @@ def poll(request, pk):
     except ValueError:
         after = 0
     new = list(conv.messages.filter(id__gt=after, stage=conv.tier))
-    panel_html, panel_key = _panel(request, conv)
-    if new:
-        conv.mark_read(me, new[-1].pk)
+    blocked = messages_blocked(conv.user1_id, conv.user2_id)
+    panel_html, panel_key = _panel(request, conv, blocked)
+    # pages only poll while they're visible, so everything up to what's shown has been seen
+    upto = new[-1].pk if new else after
+    if upto > conv.last_read_id(me):
+        if not new:   # `after` comes from the page: never past the newest real message
+            upto = min(upto, conv.messages.order_by("-id").values_list("id", flat=True).first() or 0)
+        conv.mark_read(me, upto)
     extra = {}
-    if shows_presence(conv):
+    if shows_presence(conv, blocked):
         extra = {"presence": presence(conv.other(me)), "receipt": receipt(conv, me)}
     return JsonResponse({
         **extra,
         "tier": conv.tier,
         "active": conv.is_active,
-        "blocked": messages_blocked(conv.user1_id, conv.user2_id),
+        "blocked": blocked,
         "last_id": new[-1].pk if new else after,
         "html": _render_messages(new, me, conv) if new else "",
         "panel": panel_html,
@@ -249,7 +258,7 @@ def send(request, pk):
         msg.image.save(image.name, image, save=False)
     msg.save()
     Conversation.objects.filter(pk=conv.pk).update(last_message_at=msg.created_at)
-    conv.mark_read(me, msg.pk)
+    conv.mark_read(me, msg.pk, tell_other=False)   # the new message itself already reaches them
     if _is_fetch(request):
         return JsonResponse({"ok": True})
     return redirect("chat_room", pk=pk)

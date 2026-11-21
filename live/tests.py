@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import timedelta
 from unittest import mock
@@ -253,6 +254,55 @@ class LiveSocketTests(TransactionTestCase):
         for sock in (sa, sa2, sb, sc):
             await sock.disconnect()
 
+    async def test_typing_cant_be_used_to_flood_the_database(self):
+        sa, _ = await open_socket(self.ca)
+        await next_of(sa, "badges")
+        lookups = mock.AsyncMock(return_value=None)
+        with mock.patch("live.consumers.typing_peer", lookups):
+            for conv_id in range(1, 51):                     # chat after chat, as fast as it can
+                await sa.send_json_to({"t": "typing", "conv": conv_id})
+            await sa.send_json_to({"t": "ping", "visible": False})
+            await next_of(sa, "pong")                        # every frame above has been handled
+        self.assertEqual(lookups.await_count, 1)             # one check a second per socket
+        await sa.disconnect()
+
+    async def test_typing_stops_once_messages_are_blocked(self):
+        conv = await sync_to_async(self.conversation)()
+        await sync_to_async(Conversation.objects.filter(pk=conv.pk).update)(tier=Conversation.PRIORITY)
+        sa, _ = await open_socket(self.ca)
+        sb, _ = await open_socket(self.cb)
+        await next_of(sa, "badges")
+        await next_of(sb, "badges")
+        await sa.send_json_to({"t": "typing", "conv": conv.pk})
+        await next_of(sb, "typing")
+        from accounts.models import Block
+        await sync_to_async(Block.objects.create)(blocker=self.b, blocked=self.a, messages=True)
+        await next_of(sa, "chat")                            # the block reaches Asha's socket ...
+        await asyncio.sleep(2.1)                             # ... and the per-chat typing pause passes
+        await sa.send_json_to({"t": "typing", "conv": conv.pk})
+        await sa.send_json_to({"t": "ping", "visible": False})
+        await next_of(sa, "pong")
+        while not await sb.receive_nothing(timeout=0.5):     # skip the block's own chat/badges news
+            self.assertNotEqual((await sb.receive_json_from()).get("t"), "typing")
+        await sa.disconnect()
+        await sb.disconnect()
+
+    async def test_a_priority_message_reaches_the_other_person_once(self):
+        def priority():
+            conv = self.conversation()
+            Conversation.objects.filter(pk=conv.pk).update(tier=Conversation.PRIORITY)
+            return conv
+        conv = await sync_to_async(priority)()
+        sb, _ = await open_socket(self.cb)
+        await next_of(sb, "badges")
+        await sync_to_async(self.ca.post)(reverse("chat_send", args=[conv.pk]), {"text": "hi"},
+                                          HTTP_X_REQUESTED_WITH="fetch")
+        kinds = []
+        while not await sb.receive_nothing(timeout=0.6):
+            kinds.append((await sb.receive_json_from()).get("t"))
+        self.assertEqual(kinds.count("chat"), 1)
+        await sb.disconnect()
+
     async def test_seen_reaches_the_sender_in_priority_chats(self):
         def priority_with_message():
             conv = self.conversation()
@@ -262,7 +312,7 @@ class LiveSocketTests(TransactionTestCase):
         conv = await sync_to_async(priority_with_message)()
         sa, _ = await open_socket(self.ca)
         await next_of(sa, "badges")
-        await sync_to_async(self.cb.get)(reverse("chat_room", args=[conv.pk]))   # Bilal reads it
+        await sync_to_async(self.cb.get)(reverse("chat_poll", args=[conv.pk]) + "?after=0")   # Bilal's page shows it
         self.assertEqual(await next_of(sa, "chat"), {"t": "chat", "conv": conv.pk})
         await sa.disconnect()
 

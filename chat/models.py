@@ -52,14 +52,19 @@ class Conversation(models.Model):
     def last_read_id(self, user):
         return self.user1_last_read_id if user.pk == self.user1_id else self.user2_last_read_id
 
-    def mark_read(self, user, message_id):
+    def mark_read(self, user, message_id, tell_other=True):
+        """Read up to `message_id`. The update only ever moves forward, even when two tabs race.
+        In a Priority chat the other person's open chat is told, so "Sent" turns into "Seen";
+        tell_other=False when that can't change anything for them (you just sent the message)."""
         field = "user1_last_read_id" if user.pk == self.user1_id else "user2_last_read_id"
-        if message_id > getattr(self, field):
-            setattr(self, field, message_id)
-            Conversation.objects.filter(pk=self.pk).update(**{field: message_id})
+        if message_id <= getattr(self, field):
+            return
+        setattr(self, field, message_id)
+        moved = Conversation.objects.filter(pk=self.pk, **{f"{field}__lt": message_id}).update(**{field: message_id})
+        if moved:
             from live.publish import push_badges, push_chat_to
             push_badges(user.pk)   # your other open tabs drop the unread count too
-            if self.tier == self.PRIORITY:   # their open chat turns "Sent" into "Seen"
+            if tell_other and self.tier == self.PRIORITY:
                 push_chat_to(self.other_id(user), self.pk)
 
     def nickname_for(self, user):
