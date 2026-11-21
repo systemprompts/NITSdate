@@ -30,7 +30,8 @@ def badge_counts(user):
 
 def nav(request):
     user = request.user
-    ctx = {"DEV_LOGIN": settings.DEV_LOGIN, "LIVE_WS_URL": settings.LIVE_WS_URL}
+    ctx = {"DEV_LOGIN": settings.DEV_LOGIN, "LIVE_WS_URL": settings.LIVE_WS_URL,
+           "ALL_NITS_LIVE": settings.ALL_NITS_LIVE}
     if not user.is_authenticated or not user.has_profile:
         return ctx
     from moderation.permissions import is_admin, is_mod, request_limit, restriction_for

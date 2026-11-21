@@ -21,10 +21,12 @@ from accounts.privacy import BLOCKED, SELF, display_name, field_visible, get_pro
 from accounts.profile_fields import PRIVACY_LABELS
 from chat.models import Conversation, Message
 from feed.models import Comment, Post
+from feed.visibility import check_visible
 from live.publish import push_mods
 from matchmaking.models import MatchSession
 
 from accounts.adapters import email_allowed, may_sign_in
+from accounts.campuses import CAMPUS_CHOICES, by_code, campus_of_email, open_campuses
 
 from .models import AllowedEmail, ModAction, ModeratorGrant, Report, Restriction
 from .permissions import is_admin, is_mod
@@ -95,7 +97,7 @@ def _report_page(request, *, kind, reported_user, label, snippet, fallback, snap
 
 @login_required
 def report_post(request, pk):
-    post = get_object_or_404(Post, pk=pk)
+    post = check_visible(request.user, get_object_or_404(Post, pk=pk))
     return _report_page(request, kind=Report.POST, reported_user=post.author, post=post,
                         label=f"Post by {display_name(post.author, request.user)}",
                         snippet=post.title + (f"\n\n{post.body}" if post.body else ""),
@@ -104,7 +106,8 @@ def report_post(request, pk):
 
 @login_required
 def report_comment(request, pk):
-    comment = get_object_or_404(Comment, pk=pk, is_deleted=False)
+    comment = get_object_or_404(Comment.objects.select_related("post"), pk=pk, is_deleted=False)
+    check_visible(request.user, comment.post)
     kind_label = "Reply" if comment.parent_id else "Comment"
     return _report_page(request, kind=Report.COMMENT, reported_user=comment.author, comment=comment,
                         post=comment.post,
@@ -446,21 +449,25 @@ def delete_user(request, user_id):
 @mod_required
 def allowlist(request):
     me = request.user
-    domain = settings.ALLOWED_EMAIL_DOMAIN
+    rule_on = settings.OPEN_CAMPUSES != "any"
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "add":
             email = request.POST.get("email", "").strip().lower()
             note = request.POST.get("note", "").strip()[:200]
+            campus = request.POST.get("campus") or settings.DEFAULT_CAMPUS
+            if not by_code(campus):
+                return HttpResponseBadRequest()
             try:
                 validate_email(email)
             except ValidationError:
                 messages.error(request, "Enter a valid email address.")
                 return redirect("mod_allowlist")
-            if domain and email_allowed(email):
-                messages.info(request, f"{email} is a college address; it can always sign in.")
+            if rule_on and email_allowed(email):
+                messages.info(request, f"{email} is a college address of {campus_of_email(email)}; it can always sign in.")
                 return redirect("mod_allowlist")
-            entry, created = AllowedEmail.objects.get_or_create(email=email, defaults={"note": note, "added_by": me})
+            entry, created = AllowedEmail.objects.get_or_create(
+                email=email, defaults={"note": note, "added_by": me, "campus": campus})
             if created:
                 log(me, "allowed email", email + (f" ({note})" if note else ""),
                     User.objects.filter(email__iexact=email).first())
@@ -485,13 +492,13 @@ def allowlist(request):
         e.account = accounts.get(e.email)
     # signed-up accounts that the college-email rule now keeps out
     blocked = []
-    if domain:
-        outside = (User.objects.filter(is_active=True).exclude(email="")
-                   .exclude(email__iendswith="@" + domain).exclude(email__iendswith="." + domain)
-                   .select_related("profile").order_by("-date_joined")[:200])
-        blocked = [u for u in outside if not may_sign_in(u.email)]
+    if rule_on:
+        recent = (User.objects.filter(is_active=True).exclude(email="")
+                  .select_related("profile").order_by("-date_joined")[:1000])
+        blocked = [u for u in recent if not email_allowed(u.email) and not may_sign_in(u.email)][:200]
     return render(request, "moderation/allowlist.html", {
-        "entries": entries, "blocked": blocked, "domain": domain,
+        "entries": entries, "blocked": blocked, "rule_on": rule_on,
+        "campus_choices": CAMPUS_CHOICES, "default_campus": settings.DEFAULT_CAMPUS, "campuses": open_campuses(),
     })
 
 

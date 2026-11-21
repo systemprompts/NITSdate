@@ -71,7 +71,7 @@ class ScaleTests(TestCase):
             created = now - timedelta(minutes=i)
             score = (i * 37) % 200 - 50
             posts.append(Post(author=self.b, title=f"post {i}", score=score, created_at=created,
-                              hot=hot_score(score, created)))
+                              hot=hot_score(score, created), campus=self.b.campus))
         Post.objects.bulk_create(posts)
         self.client.force_login(self.a)
         expected = sorted(posts, key=lambda p: p.hot, reverse=True)[:20]

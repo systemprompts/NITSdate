@@ -5,6 +5,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
 
+from .campuses import CAMPUS_CHOICES, campus_for_new_account, campus_name
 from .profile_fields import FIELD_MAP, FIELDS, GENDER_CHOICES, PRIVACY_CHOICES
 
 ADJECTIVES = [
@@ -38,11 +39,19 @@ class User(AbstractUser):
     notify_upvotes = models.BooleanField(default=True)
     notify_comments = models.BooleanField(default=True)
     notify_replies = models.BooleanField(default=True)
+    # which NIT they're at: from their college email (accounts/campuses.py), set once
+    campus = models.CharField(max_length=20, choices=CAMPUS_CHOICES, blank=True, db_index=True)
 
     def save(self, *args, **kwargs):
         if not self.alias:
             self.alias = generate_alias()
+        if not self.campus:
+            self.campus = campus_for_new_account(self.email)
         super().save(*args, **kwargs)
+
+    @property
+    def campus_name(self):
+        return campus_name(self.campus)
 
     @property
     def has_profile(self):

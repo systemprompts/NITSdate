@@ -3,7 +3,7 @@
 {% block content %}
 <article class="narrow-wide sheet margined prose legal">
   <h1>Privacy</h1>
-  <p class="muted">What nitsdate stores, who can see it, and how to get it removed. Updated 20 November 2026.</p>
+  <p class="muted">What nitsdate stores, who can see it, and how to get it removed. Updated 22 November 2026.</p>
 
   <h2>What is stored</h2>
   <ul>
@@ -25,14 +25,19 @@
 
   <h2>Who can see what</h2>
   <ul>
-    <li>You choose for each answer and each photo: <b>only me</b>, <b>connections</b>, or <b>everyone signed in</b>.</li>
+    <li>Which NIT you're at comes from your college email address and is shown on your profile.</li>
+    <li><b>Campus feed</b> posts, and the comments under them, are seen only by students of your NIT.
+      {% if ALL_NITS_LIVE %}Posts you send to the <b>All NITs</b> feed are seen by students of every NIT, with your NIT next to your name.{% else %}An <b>All NITs</b> feed is coming; posts there will be seen by students of every NIT.{% endif %}</li>
+    <li>You choose for each answer and each photo: <b>only me</b>, <b>connections</b>, or <b>everyone signed in</b>.
+      "Everyone signed in" includes students of other NITs who open your profile.</li>
     <li>You can show a random name instead of your real one, and lock your profile so strangers see only your randomized name.</li>
-    <li>In matchmaking you both get blind nicknames until you connect.</li>
+    <li>In matchmaking you both get blind nicknames until you connect. You're matched within your own NIT{% if ALL_NITS_LIVE %} unless
+      you both choose All NITs{% else %}; matching across NITs is coming{% endif %}.</li>
     <li>Notifications tell you when someone upvotes, comments on or replies to what you posted. Upvote
       notifications never say who voted. You can switch each kind off on the notifications page.</li>
     <li>Apart from this page, the terms and the sign-in page, everything needs a sign-in, and search engines are
       told not to index the site.</li>
-    <li><b>Moderators</b> (one or two people chosen by the admins) can see an account's email address, every
+    <li><b>Moderators</b> (a small team chosen by the admins, for every NIT) can see an account's email address, every
       profile answer and photo whatever its privacy setting, and its posts and comments. When a message or chat is
       reported they can read up to 100 messages before the report, but nothing after it. Every moderator action is
       logged. Whoever you report is never told who reported them.</li>

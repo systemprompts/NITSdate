@@ -1,12 +1,32 @@
 {% extends "base.html" %}
-{% block title %}Feed{% endblock %}
+{% block title %}{% if feed == "all" %}All NITs{% else %}{{ user.campus_name }}{% endif %}{% endblock %}
 {% block content %}
 <div class="feed-layout">
   <div class="feed-main">
     <div class="page-head">
-      <h1>Campus feed</h1>
-      {% if not limits.no_posting %}<a href="{% url 'new_post' %}" class="btn btn-primary">{% icon 'plus' 16 %} Write a post</a>{% endif %}
+      <div>
+        <h1>{% if feed == "all" %}All NITs{% else %}Campus feed{% endif %}</h1>
+        <p class="muted">{% if feed == "all" %}Posts every NIT can see.{% else %}Only students of {{ user.campus_name }} see these posts.{% endif %}</p>
+      </div>
+      {% if not limits.no_posting and not coming_soon %}<a href="{% url 'new_post' %}{% if feed == 'all' %}?to=all{% endif %}" class="btn btn-primary">{% icon 'plus' 16 %} Write a post</a>{% endif %}
     </div>
+    <nav class="feed-switch" aria-label="Feeds">
+      <a href="{% url 'home' %}" class="{% if feed != 'all' %}active{% endif %}">{% icon 'home' 16 %} {{ user.campus_name }}</a>
+      <a href="{% url 'all_nits' %}" class="{% if feed == 'all' %}active{% endif %}">{% icon 'users' 16 %} All NITs{% if not ALL_NITS_LIVE %} <em class="soon">Soon</em>{% endif %}</a>
+    </nav>
+
+    {% if coming_soon %}
+    <div class="sheet margined coming-soon">
+      <svg class="drawing-heart" viewBox="0 0 120 110" aria-hidden="true">
+        <path pathLength="100" d="M60 98 C 18 70, 6 48, 14 30 C 22 12, 48 10, 60 34 C 72 10, 98 12, 106 30 C 114 48, 102 70, 60 98 Z"
+              fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h2 class="hand">All NITs is coming soon</h2>
+      <p class="muted">One feed for students of every NIT, and matchmaking across NITs. Until then, your
+        {{ user.campus_name }} feed and matches stay just between your campus.</p>
+      <a href="{% url 'home' %}" class="btn">Back to {{ user.campus_name }}</a>
+    </div>
+    {% else %}
     <nav class="tabs" aria-label="Sort posts">
       {% for key, label in sorts.items %}<a href="?sort={{ key }}" class="{% if key == sort %}active{% endif %}">{{ label }}</a>{% endfor %}
     </nav>
@@ -17,12 +37,13 @@
       {% empty %}
         <div class="empty-state">
           <p>Nothing here yet. Start the conversation.</p>
-          <a href="{% url 'new_post' %}" class="btn btn-primary">Write a post</a>
+          <a href="{% url 'new_post' %}{% if feed == 'all' %}?to=all{% endif %}" class="btn btn-primary">Write a post</a>
         </div>
       {% endfor %}
     </div>
+    {% endif %}
 
-    {% if page.has_other_pages %}
+    {% if page and page.has_other_pages %}
     <nav class="pager">
       {% if page.has_previous %}<a class="btn btn-ghost" href="{% qs page=page.previous_page_number %}">Newer</a>{% endif %}
       <span class="muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -17,25 +18,40 @@ from notifications.models import Notification
 from notifications.services import notify, withdraw_upvote
 
 from .models import Comment, CommentVote, Post, PostVote
+from .visibility import check_visible
 
 SORTS = {"hot": "Hot", "new": "New", "top": "Top"}
 
 
 def home(request):
+    """Campus feed: posts from your own NIT, seen by nobody else."""
     if not request.user.is_authenticated:
         return redirect("login")
+    me = request.user
+    return _feed(request, Post.CAMPUS, Post.objects.filter(audience=Post.CAMPUS, campus=me.campus))
+
+
+@login_required
+def all_nits(request):
+    """All NITs feed: posts every NIT can see. "Coming soon" until settings.ALL_NITS_LIVE."""
+    if not settings.ALL_NITS_LIVE:
+        return render(request, "feed/home.html", {"feed": Post.ALL, "coming_soon": True})
+    return _feed(request, Post.ALL, Post.objects.filter(audience=Post.ALL))
+
+
+def _feed(request, feed, posts):
     sort = request.GET.get("sort", "hot")
     if sort not in SORTS:
         sort = "hot"
     order = {"new": ("-created_at", "-id"), "top": ("-score", "-created_at", "-id")}.get(sort, ("-hot", "-id"))
     # stored rank/indexes: the database picks the 20 ids, then only those posts are loaded
-    page = paged_ids(Post.objects.order_by(*order), 20, request.GET.get("page"),
+    page = paged_ids(posts.order_by(*order), 20, request.GET.get("page"),
                      Post.objects.select_related("author__profile"))
     votes = dict(PostVote.objects.filter(user=request.user, post__in=[p.pk for p in page])
                  .values_list("post_id", "value"))
     for post in page:
         post.my_vote = votes.get(post.pk, 0)
-    return render(request, "feed/home.html", {"page": page, "sort": sort, "sorts": SORTS})
+    return render(request, "feed/home.html", {"page": page, "sort": sort, "sorts": SORTS, "feed": feed})
 
 
 def _limited(request, flag, text):
@@ -55,9 +71,14 @@ def new_post(request):
     if _limited(request, "no_posting", "A moderator has turned off posting for your account."):
         return redirect("home")
     errors = {}
-    data = {"title": "", "body": ""}
+    data = {"title": "", "body": "", "audience": Post.CAMPUS}
+    if request.method == "GET" and request.GET.get("to") == Post.ALL and settings.ALL_NITS_LIVE:
+        data["audience"] = Post.ALL
     if request.method == "POST":
-        data = {"title": request.POST.get("title", "").strip(), "body": request.POST.get("body", "").strip()}
+        data = {"title": request.POST.get("title", "").strip(), "body": request.POST.get("body", "").strip(),
+                # All NITs is "coming soon" until settings.ALL_NITS_LIVE: until then everything is a campus post
+                "audience": (Post.ALL if request.POST.get("audience") == Post.ALL and settings.ALL_NITS_LIVE
+                             else Post.CAMPUS)}
         if not data["title"]:
             errors["title"] = "Give your post a title."
         elif len(data["title"]) > 200:
@@ -71,7 +92,7 @@ def new_post(request):
             except ValidationError as exc:
                 errors["image"] = exc.messages[0]
         if not errors:
-            post = Post(author=request.user, **data)
+            post = Post(author=request.user, campus=request.user.campus, **data)
             if image:
                 post.image.save(image.name, image, save=False)
             post.save()
@@ -131,7 +152,7 @@ def _load_thread(post, roots):
 
 @login_required
 def post_detail(request, pk):
-    post = get_object_or_404(Post.objects.select_related("author__profile"), pk=pk)
+    post = check_visible(request.user, get_object_or_404(Post.objects.select_related("author__profile"), pk=pk))
     thread_root = None
     base = Comment.objects.filter(post=post).select_related("author__profile")
     if request.GET.get("thread"):
@@ -154,7 +175,7 @@ def post_detail(request, pk):
 
 @login_required
 def post_image(request, pk):
-    return serve_image(get_object_or_404(Post, pk=pk).image)
+    return serve_image(check_visible(request.user, get_object_or_404(Post, pk=pk)).image)
 
 
 def _apply_vote(model, target_field, target, user, value):
@@ -204,7 +225,7 @@ def _vote_response(request, score, mine, fallback):
 @login_required
 @require_POST
 def vote_post(request, pk):
-    post = get_object_or_404(Post, pk=pk)
+    post = check_visible(request.user, get_object_or_404(Post, pk=pk))
     if _limited(request, "no_interaction", NO_INTERACTION):
         return _forbidden(request, reverse("post_detail", args=[pk]))
     try:
@@ -224,7 +245,8 @@ def vote_post(request, pk):
 @login_required
 @require_POST
 def vote_comment(request, pk):
-    comment = get_object_or_404(Comment, pk=pk, is_deleted=False)
+    comment = get_object_or_404(Comment.objects.select_related("post"), pk=pk, is_deleted=False)
+    check_visible(request.user, comment.post)
     if _limited(request, "no_interaction", NO_INTERACTION):
         return _forbidden(request, reverse("post_detail", args=[comment.post_id]))
     try:
@@ -244,7 +266,7 @@ def vote_comment(request, pk):
 @login_required
 @require_POST
 def add_comment(request, pk):
-    post = get_object_or_404(Post, pk=pk)
+    post = check_visible(request.user, get_object_or_404(Post, pk=pk))
     if _limited(request, "no_interaction", NO_INTERACTION):
         return redirect("post_detail", pk=pk)
     body = request.POST.get("body", "").strip()

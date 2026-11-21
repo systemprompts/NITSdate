@@ -1,19 +1,27 @@
 {% extends "base.html" %}
-{% block title %}Allowed emails{% endblock %}
+{% block title %}Allowed emails<section class="sheet" style="margin-top:1.2rem">
+  <h2>NITs that can sign in <span class="count">{{ campuses|length }}</span></h2>
+  <p class="muted small">Their students sign in with their college Google account; departmental addresses count too.</p>
+  <ul class="tags">{% for c in campuses %}<li class="tag" title="{{ c.domains|join:', ' }}">{{ c.name }}</li>{% endfor %}</ul>
+</section>
+{% endblock %}
 {% block content %}
 {% include "moderation/_nav.html" with section="allowlist" %}
 <div class="grid-2">
   <section class="sheet">
     <h2>Allowed emails</h2>
     <p class="muted small">
-      {% if domain %}Only addresses ending in <b>{{ domain }}</b> can sign in. Emails on this list can sign in too
-        (moderators and admins always can).
+      {% if rule_on %}College addresses of the {{ campuses|length }} NITs below can sign in. Emails on this list can sign in too
+        (moderators and admins always can). Pick the NIT each one belongs to: that's the campus feed and matchmaking they get.
       {% else %}The college-email rule is off right now, so any Google account can sign in. This list starts to matter
         once it's switched on.{% endif %}
       Removing an email signs that person out on their next click.</p>
     <form method="post" class="stack">
       {% csrf_token %}<input type="hidden" name="action" value="add">
       <input type="email" name="email" required placeholder="someone@gmail.com" aria-label="Email to allow">
+      <select name="campus" aria-label="Their NIT">
+        {% for code, name in campus_choices %}<option value="{{ code }}" {% if code == default_campus %}selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select>
       <input type="text" name="note" maxlength="200" placeholder="Why (optional, only moderators see it)" aria-label="Note">
       <button class="btn btn-primary">{% icon 'plus' 15 %} Allow this email</button>
     </form>
@@ -21,6 +29,7 @@
       {% for e in entries %}
         <li>
           <span>{% if e.account %}<a href="{% url 'mod_user' e.account.pk %}"><b>{{ e.email }}</b></a>{% else %}<b>{{ e.email }}</b> <span class="muted">(hasn't signed up yet)</span>{% endif %}
+            <br><small class="muted">{{ e.get_campus_display }}</small>
             {% if e.note %}<br><small class="muted">{{ e.note }}</small>{% endif %}
             <br><small class="muted">added by {{ e.added_by.email|default:"?" }}, {{ e.created_at|naturaltime }}</small></span>
           <form method="post" data-confirm="Remove {{ e.email }} from the allowed list?">{% csrf_token %}<input type="hidden" name="action" value="remove"><input type="hidden" name="entry" value="{{ e.pk }}"><button class="btn btn-sm btn-ghost">Remove</button></form>
@@ -30,7 +39,7 @@
       {% endfor %}
     </ul>
   </section>
-  {% if domain %}
+  {% if rule_on %}
   <section class="sheet">
     <h2>Accounts that can't sign in <span class="count">{{ blocked|length }}</span></h2>
     <p class="muted small">They joined before the college-email rule, or their entry was removed. Allow one to let them back in.</p>
@@ -38,7 +47,7 @@
       {% for u in blocked %}
         <li>
           <span><a href="{% url 'mod_user' u.pk %}"><b>{{ u.profile.name|default:u.email }}</b></a> <span class="muted">{{ u.email }}</span></span>
-          <form method="post">{% csrf_token %}<input type="hidden" name="action" value="add"><input type="hidden" name="email" value="{{ u.email }}"><button class="btn btn-sm">Allow</button></form>
+          <form method="post">{% csrf_token %}<input type="hidden" name="action" value="add"><input type="hidden" name="email" value="{{ u.email }}"><input type="hidden" name="campus" value="{{ u.campus }}"><button class="btn btn-sm">Allow</button></form>
         </li>
       {% empty %}
         <li class="muted">None.</li>

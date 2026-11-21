@@ -5,7 +5,7 @@
   <div>
     <a class="logo logo-lg" href="/">nits<span class="logo-heart">{% icon 'heart' 30 %}</span>date</a>
     <h1>Write your page.<br>Choose who reads it.</h1>
-    <p class="lead">The dating and social space for NIT Silchar. Post to campus, match blind,
+    <p class="lead">The dating and social space for students of the NITs. Post to your campus, match blind,
       and see each other's profiles only once you both connect.</p>
 
     <div class="signin">
@@ -26,10 +26,16 @@
       {% endif %}
       {% if not google_ready %}
         <p class="hint">Google sign-in needs <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code> in <code>.env</code>.</p>
-      {% elif allowed_domain %}
-        <p class="hint">Use your college account: an address ending in {{ allowed_domain }}.</p>
+      {% elif any_account %}
+        <p class="hint">Any Google account works for now.</p>
       {% else %}
-        <p class="hint">Any Google account works for now. Later, only nits.ac.in addresses.</p>
+        <p class="hint">Use your college Google account. Your NIT comes from your email, and your campus feed is just for your NIT.</p>
+      {% endif %}
+      {% if not any_account %}
+        <details class="campus-list">
+          <summary>{{ campuses|length }} NITs can sign in</summary>
+          <ul>{% for c in campuses %}<li>{{ c.name }}</li>{% endfor %}</ul>
+        </details>
       {% endif %}
       <p class="hint legal-links">By continuing you agree to the <a href="{% url 'terms' %}">terms</a>.
         <a href="{% url 'privacy' %}">What we store and who sees it</a>.</p>

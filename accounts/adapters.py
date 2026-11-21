@@ -5,14 +5,15 @@ from django.conf import settings
 from django.contrib import messages
 from django.shortcuts import redirect
 
+from .campuses import campus_of_email, is_open
+
 
 def email_allowed(email):
-    """ALLOWED_EMAIL_DOMAIN=nits.ac.in accepts x@nits.ac.in and x@cse.nits.ac.in."""
-    domain = settings.ALLOWED_EMAIL_DOMAIN
-    if not domain:
+    """A college address of a NIT that's open for sign-up (settings.OPEN_CAMPUSES), including its
+    departmental subdomains: x@nits.ac.in, x@cse.nits.ac.in, x@student.nitw.ac.in ..."""
+    if settings.OPEN_CAMPUSES == "any":
         return True
-    email = (email or "").strip().lower()
-    return email.endswith("@" + domain) or email.endswith("." + domain)
+    return is_open(campus_of_email(email))
 
 
 def may_sign_in(email):
@@ -30,7 +31,7 @@ def may_sign_in(email):
             or User.objects.filter(email__iexact=email, is_superuser=True, is_active=True).exists())
 
 
-NOT_ALLOWED = "Please sign in with your college Google account (an address ending in {domain})."
+NOT_ALLOWED = "Please sign in with your college Google account from one of the NITs listed below."
 
 
 class AccountAdapter(DefaultAccountAdapter):
@@ -45,7 +46,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
     def pre_social_login(self, request, sociallogin):
         email = sociallogin.user.email or sociallogin.account.extra_data.get("email", "")
         if not may_sign_in(email):
-            messages.error(request, NOT_ALLOWED.format(domain=settings.ALLOWED_EMAIL_DOMAIN))
+            messages.error(request, NOT_ALLOWED)
             raise ImmediateHttpResponse(redirect("login"))
         if sociallogin.account.extra_data.get("email_verified") is False:
             messages.error(request, "Your Google email address isn't verified.")

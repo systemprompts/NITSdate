@@ -18,6 +18,7 @@
     <div class="grow">
       <h1>{{ name }}&nbsp;{% gender_mark gender %} {% hidden_mark name_hidden %}</h1>
       <div class="row-gap">
+        <span class="pill pill-campus">{% icon 'home' 13 %} {{ owner.campus_name }}</span>
         {% if rel == "connection" %}<span class="pill pill-inbox">{% icon 'users' 13 %} Connected</span>{% endif %}
         {% if conversation.tier == "priority" %}<span class="pill pill-priority">{% icon 'star' 13 %} Priority</span>{% endif %}
         {% if locked %}<span class="pill">{% icon 'lock' 13 %} Locked profile</span>{% endif %}

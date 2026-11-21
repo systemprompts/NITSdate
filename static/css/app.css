@@ -727,3 +727,28 @@ label.btn { cursor: pointer; }
 .legal ul { padding-left: 1.2em; margin: 0 0 .8em; }
 .legal li { margin: .4em 0; line-height: 1.55; }
 .legal-links { font-size: .85rem; }
+
+/* ---- feeds: your NIT's Campus feed and the All NITs feed ---- */
+.feed-switch {
+  display: flex; gap: .3rem; margin: -.2rem 0 1rem; padding: .25rem; border-radius: 10px; width: fit-content; max-width: 100%;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+.feed-switch a {
+  display: inline-flex; align-items: center; gap: .4rem; padding: .42rem .9rem .36rem; border-radius: 8px;
+  font-weight: 600; color: var(--muted); white-space: nowrap; min-width: 0;
+}
+.feed-switch a:hover { color: var(--ink); }
+.feed-switch a.active { background: var(--paper); color: var(--ink); box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 14%, transparent); }
+@media (max-width: 420px) { .feed-switch { width: 100%; } .feed-switch a { flex: 1; justify-content: center; padding-inline: .5rem; } }
+.soon {
+  font-style: normal; font-size: .7rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+  padding: .1rem .4rem .06rem; border-radius: 5px; background: var(--hl); color: var(--hl-ink);
+}
+.soon-chip span { opacity: .7; border-style: dashed; }
+.coming-soon { text-align: center; padding: 2.2rem 1.5rem; }
+.coming-soon p { max-width: 30rem; margin: .4rem auto 1rem; }
+.pill-campus { background: var(--accent-soft); color: var(--accent); font-size: .74rem; padding: .1rem .45rem .06rem; }
+.campus-list { margin-top: .4rem; font-size: .9rem; color: var(--muted); }
+.campus-list summary { cursor: pointer; font-weight: 600; }
+.campus-list ul { columns: 2; column-gap: 1.2rem; margin: .5rem 0 0; padding-left: 1.1rem; }
+@media (max-width: 420px) { .campus-list ul { columns: 1; } }

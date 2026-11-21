@@ -1,4 +1,8 @@
-# nitsdate — NIT Silchar dating & social site (Django)
+# nitsdate — dating & social site for the NITs (Django)
+
+Students of each NIT sign in with their college Google account (the list is in `accounts/campuses.py`).
+Every NIT gets its own Campus feed that other NITs can't see; an All NITs feed and matching across NITs
+are built and switch on with `ALL_NITS_LIVE=1` (until then they show "Coming soon").
 
 ## Run it locally
 
@@ -34,8 +38,9 @@ matching + 3-day cooldown + expiry, connect at 10+10, priority at 100+100, photo
 2. Authorized redirect URI: `http://localhost:8000/accounts/google/login/callback/`
    (plus `https://<your-domain>/accounts/google/login/callback/` in production).
 3. Put `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in `.env`.
-4. Students only: set `ALLOWED_EMAIL_DOMAIN=nits.ac.in`. This accepts `…@nits.ac.in` and `…@<dept>.nits.ac.in`.
-   Leave it empty to allow every Google account.
+4. Who may sign in: `OPEN_CAMPUSES=all` (the default) lets in students of every NIT in
+   `accounts/campuses.py`, including departmental addresses such as `…@cse.nits.ac.in`. List codes to open only
+   some (`OPEN_CAMPUSES=silchar,warangal`), or `any` to allow every Google account while testing.
 
 ## How the rules are implemented
 | Rule | Where |

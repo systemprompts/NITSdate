@@ -14,7 +14,8 @@
     </form>
     <div class="grow">
       <h1>{{ profile.name }}&nbsp;{% gender_mark profile.gender %}</h1>
-      <p class="muted">Where your name is hidden, people see <b class="hand">{{ user.alias }}</b>.</p>
+      <p class="muted"><span class="pill pill-campus">{% icon 'home' 13 %} {{ user.campus_name }}</span>
+        Where your name is hidden, people see <b class="hand">{{ user.alias }}</b>.</p>
     </div>
     <div class="row-gap head-actions">
       <label for="avatar-input" class="btn btn-sm">{% icon 'camera' 15 %} {% if profile.photo %}Change photo{% else %}Add profile photo{% endif %}</label>

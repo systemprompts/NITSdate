@@ -21,6 +21,7 @@
         (<span id="expires-in">until {{ current.expires_at|date:"M j, H:i" }}</span>), and a new chat will
         appear in Messages under Matchmaking.</p>
       <ul class="filter-summary">
+        <li><b>Match with</b><span>{% if current.reach == "all" and ALL_NITS_LIVE %}All NITs{% else %}{{ user.campus_name }} only{% endif %}</span></li>
         <li><b>Age</b><span>{{ current.min_age }} to {{ current.max_age }}</span></li>
         <li><b>Looking for</b><span>{% if current.genders %}{{ current.genders|choice_labels:"gender" }}{% else %}Anyone{% endif %}</span></li>
         {% if current.looking_for %}<li><b>Here for</b><span>{{ current.looking_for|choice_labels:"looking_for" }}</span></li>{% endif %}
@@ -34,6 +35,18 @@
   {% else %}
     <form method="post" action="{% url 'match_start' %}" class="sheet stack match-form">
       {% csrf_token %}
+      <fieldset class="field">
+        <legend>Match with</legend>
+        <div class="chips">
+          <label class="chip-input"><input type="radio" name="reach" value="campus" {% if reach != "all" %}checked{% endif %}><span>{% icon 'home' 14 %} Only {{ user.campus_name }}</span></label>
+          {% if ALL_NITS_LIVE %}
+            <label class="chip-input"><input type="radio" name="reach" value="all" {% if reach == "all" %}checked{% endif %}><span>{% icon 'users' 14 %} All NITs</span></label>
+          {% else %}
+            <label class="chip-input soon-chip" title="Coming soon"><input type="radio" name="reach" value="all" disabled><span>{% icon 'users' 14 %} All NITs <em class="soon">Coming soon</em></span></label>
+          {% endif %}
+        </div>
+        <small class="muted">{% if ALL_NITS_LIVE %}All NITs pairs you with students of any NIT who also chose All NITs, as well as your own.{% else %}For now you're matched with students of {{ user.campus_name }}. Matching across NITs is coming soon.{% endif %}</small>
+      </fieldset>
       <fieldset class="field">
         <legend>Looking for</legend>
         <div class="chips" data-any-group>
@@ -75,7 +88,7 @@
       </div>
       <div class="row-gap">
         <button class="btn btn-primary btn-lg">{% icon 'zap' 18 %} Find my match</button>
-        <span class="muted small">{{ searching_now }} other {{ searching_now|pluralize:"person is,people are" }} searching now</span>
+        <span class="muted small">{{ searching_now }} other {{ searching_now|pluralize:"person is,people are" }} searching at {{ user.campus_name }}{% if ALL_NITS_LIVE and searching_all > searching_now %}, {{ searching_all }} across All NITs{% endif %}</span>
       </div>
     </form>
   {% endif %}
@@ -85,6 +98,7 @@
     <h3>How it works</h3>
     <ol class="steps">
       <li>You're paired with someone who fits you both: who you're each looking for, age range and any filters you switched on. Under-18s are only ever matched with other under-18s.</li>
+      <li>Choose who you can meet: only students of {{ user.campus_name }}, or{% if not ALL_NITS_LIVE %} (coming soon){% endif %} students of every NIT who also chose All NITs.</li>
       <li>You chat under made-up nicknames. No profiles, no real names.</li>
       <li>After {{ connect_after }} messages each, a Connect button appears. When they accept, the chat moves to your Inbox and your profiles unlock.</li>
       <li>You're never matched with someone you're already connected with, and the same two people won't be matched again for {{ cooldown_days }} days.</li>

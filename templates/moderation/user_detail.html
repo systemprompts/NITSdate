@@ -22,6 +22,7 @@
 <section class="sheet">
   <dl class="facts">
     <dt>Email</dt><dd><b>{{ target.email|default:"(removed)" }}</b></dd>
+    <dt>NIT</dt><dd>{{ target.campus_name|default:"—" }}</dd>
     {% if profile %}<dt>Date of birth</dt><dd>
       <b>{{ profile.birth_date|date:"j F Y" }}</b> (age {{ profile.age }})
       {% if can_restrict %}

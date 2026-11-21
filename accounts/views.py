@@ -19,10 +19,12 @@ from django.views.decorators.http import require_POST
 
 from chat.services import WorkflowError, accept_connection_request, connected_conversation
 from feed.models import Post
+from feed.visibility import visible_q
 from moderation.models import ModeratorGrant
 from moderation.permissions import is_mod, request_limit
 from moderation.services import account_summary, delete_account
 
+from .campuses import open_campuses
 from .forms import OnboardingForm, clean_field_input
 from chat.models import Conversation, PriorityRequest
 
@@ -49,7 +51,8 @@ def login_page(request):
         return redirect("home")
     return render(request, "accounts/login.html", {
         "google_ready": bool(settings.SOCIALACCOUNT_PROVIDERS["google"]["APP"]["client_id"]),
-        "allowed_domain": settings.ALLOWED_EMAIL_DOMAIN,
+        "campuses": open_campuses(),
+        "any_account": settings.OPEN_CAMPUSES == "any",
     })
 
 
@@ -308,7 +311,7 @@ def profile_view(request, user_id):
         "conversation": conversation,
         "requests_left": requests_left_today(me),
         "per_day": request_limit(request.user),
-        "posts": Post.objects.filter(author=owner)[:5],
+        "posts": Post.objects.filter(visible_q(me), author=owner)[:5],   # not another NIT's campus posts
         "photos": [ph for ph in GalleryPhoto.objects.filter(user=owner) if gallery_visible(ph, profile, rel)],
         "hidden_photos": sum(1 for ph in GalleryPhoto.objects.filter(user=owner) if not gallery_visible(ph, profile, rel)),
         "my_block": None if preview else Block.objects.filter(NOT_BLIND, blocker=me, blocked=owner).first(),

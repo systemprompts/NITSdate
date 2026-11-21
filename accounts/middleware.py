@@ -28,7 +28,7 @@ class OnboardingMiddleware:
             # or whose allowlist entry a moderator removed (college addresses never need a query)
             if not (email_allowed(user.email) or user.is_superuser or may_sign_in(user.email)):
                 logout(request)
-                messages.error(request, NOT_ALLOWED.format(domain=settings.ALLOWED_EMAIL_DOMAIN))
+                messages.error(request, NOT_ALLOWED)
                 return redirect("login")
             if not request.path.startswith(EXEMPT_PREFIXES) and not user.has_profile:
                 return redirect(reverse("onboarding"))

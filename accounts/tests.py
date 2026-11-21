@@ -52,16 +52,23 @@ class FlowTests(TestCase):
 
     # ---- sign-up / auth ----------------------------------------------------
     def test_email_domain_rule(self):
-        with override_settings(ALLOWED_EMAIL_DOMAIN=""):
+        # every supported NIT, with departmental subdomains; look-alikes and other NITs' old domains don't count
+        self.assertTrue(email_allowed("x_ug_23@cse.nits.ac.in"))
+        self.assertTrue(email_allowed("x@nits.ac.in"))
+        self.assertTrue(email_allowed("ab21cs@student.nitw.ac.in"))
+        self.assertTrue(email_allowed("someone@nitk.edu.in"))
+        self.assertFalse(email_allowed("x@gmail.com"))
+        self.assertFalse(email_allowed("x@evilnits.ac.in"))
+        self.assertFalse(email_allowed("x@nitt.edu"))         # Trichy: not on Google mail
+        self.assertFalse(email_allowed("x@nitk.ac.in"))       # NITK's old, self-hosted domain
+        with override_settings(OPEN_CAMPUSES=frozenset({"silchar"})):
+            self.assertTrue(email_allowed("x@cse.nits.ac.in"))
+            self.assertFalse(email_allowed("ab21cs@student.nitw.ac.in"))
+        with override_settings(OPEN_CAMPUSES="any"):
             self.assertTrue(email_allowed("someone@gmail.com"))
-        with override_settings(ALLOWED_EMAIL_DOMAIN="nits.ac.in"):
-            self.assertTrue(email_allowed("x_ug_23@cse.nits.ac.in"))
-            self.assertTrue(email_allowed("x@nits.ac.in"))
-            self.assertFalse(email_allowed("x@gmail.com"))
-            self.assertFalse(email_allowed("x@evilnits.ac.in"))
 
     def test_onboarding_required_and_randomized_name(self):
-        fresh = User.objects.create(username="fresh", email="fresh@gmail.com")
+        fresh = User.objects.create(username="fresh", email="fresh@cse.nits.ac.in")
         self.login(fresh)
         self.assertRedirects(self.client.get("/"), reverse("onboarding"))
         resp = self.client.post(reverse("onboarding"), {
@@ -75,7 +82,7 @@ class FlowTests(TestCase):
         self.assertEqual(self.client.get("/").status_code, 200)
 
     def test_age_required(self):
-        fresh = User.objects.create(username="noage", email="noage@gmail.com")
+        fresh = User.objects.create(username="noage", email="noage@cse.nits.ac.in")
         self.login(fresh)
         resp = self.client.post(reverse("onboarding"), {"name": "N", "gender": "male", "likes": ["female"]})
         self.assertEqual(resp.status_code, 200)
@@ -83,7 +90,7 @@ class FlowTests(TestCase):
         self.assertFalse(Profile.objects.filter(user=fresh).exists())
 
     def test_under_16_rejected(self):
-        fresh = User.objects.create(username="kid", email="kid@gmail.com")
+        fresh = User.objects.create(username="kid", email="kid@cse.nits.ac.in")
         self.login(fresh)
         resp = self.client.post(reverse("onboarding"), {"name": "K", "gender": "male", "birth_date": years_ago(15, 300),
                                                         "likes": ["female"]})
@@ -829,7 +836,7 @@ class LegalPagesTests(TestCase):
     def test_readable_signed_out_and_before_onboarding(self):
         for url in ("/privacy/", "/terms/"):
             self.assertEqual(self.client.get(url).status_code, 200)
-        self.client.force_login(User.objects.create(username="new", email="new@gmail.com"))  # no profile yet
+        self.client.force_login(User.objects.create(username="new", email="new@cse.nits.ac.in"))  # no profile yet
         for url in ("/privacy/", "/terms/"):
             self.assertEqual(self.client.get(url).status_code, 200)
         self.assertRedirects(self.client.get("/"), reverse("onboarding"))

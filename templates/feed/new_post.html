@@ -4,10 +4,22 @@
 <div class="narrow">
   <div class="page-head">
     <h1>New post</h1>
-    <a href="{% url 'home' %}" class="btn btn-ghost">Cancel</a>
+    <a href="{% if data.audience == 'all' %}{% url 'all_nits' %}{% else %}{% url 'home' %}{% endif %}" class="btn btn-ghost">Cancel</a>
   </div>
   <form method="post" enctype="multipart/form-data" class="card stack">
     {% csrf_token %}
+    <fieldset class="field">
+      <legend>Post to</legend>
+      <div class="chips">
+        <label class="chip-input"><input type="radio" name="audience" value="campus" {% if data.audience != "all" %}checked{% endif %}><span>{% icon 'home' 14 %} {{ user.campus_name }}</span></label>
+        {% if ALL_NITS_LIVE %}
+          <label class="chip-input"><input type="radio" name="audience" value="all" {% if data.audience == "all" %}checked{% endif %}><span>{% icon 'users' 14 %} All NITs</span></label>
+        {% else %}
+          <label class="chip-input soon-chip" title="Coming soon"><input type="radio" name="audience" value="all" disabled><span>{% icon 'users' 14 %} All NITs <em class="soon">Coming soon</em></span></label>
+        {% endif %}
+      </div>
+      <small class="muted">{{ user.campus_name }} posts are seen only by students of {{ user.campus_name }}.{% if ALL_NITS_LIVE %} All NITs posts are seen by every NIT.{% endif %}</small>
+    </fieldset>
     <label class="field">
       <span>Title</span>
       <input name="title" value="{{ data.title }}" maxlength="200" required autofocus placeholder="What's on your mind?">
@@ -23,7 +35,7 @@
       <input type="file" name="image" accept="image/*">
       {% if errors.image %}<em class="error">{{ errors.image }}</em>{% endif %}
     </label>
-    <p class="muted small">Posts are public. Your name appears as each reader is allowed to see it — your randomized name for everyone else.</p>
+    <p class="muted small">Your name appears as each reader is allowed to see it — your randomized name for everyone else.</p>
     <button class="btn btn-primary">Post</button>
   </form>
 </div>

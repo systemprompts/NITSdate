@@ -4,6 +4,7 @@
   <div class="post-main">
     <div class="meta">
       <a href="{% url 'profile' post.author_id %}" class="author">{% avatar post.author user "xs" %}<span>{{ post.author|name_html:user }}</span></a>
+      {% if post.audience == "all" %}<span class="pill pill-campus" title="Posted to All NITs">{{ post.campus_name }}</span>{% endif %}
       <time datetime="{{ post.created_at|date:'c' }}">{{ post.created_at|naturaltime }}</time>
     </div>
     {% if full %}

@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import OperationalError, transaction
-from django.db.models import Case, IntegerField, Value, When
+from django.db.models import Case, IntegerField, Q, Value, When
 from django.utils import timezone
 
 from accounts.privacy import blocked_ids, connected_ids
@@ -68,7 +68,30 @@ def wants_gender(session, profile):
     return not genders or profile.gender in genders
 
 
+def reach_of(session):
+    """"All NITs" only counts while it's switched on; until then every search stays on its campus."""
+    return session.reach if settings.ALL_NITS_LIVE else MatchSession.CAMPUS
+
+
+def reach_q(user, reach):
+    """The searches someone at `user`'s NIT with this reach could meet: their own NIT, plus (for an
+    All NITs search) everyone else who chose All NITs."""
+    q = Q(user__campus=user.campus)
+    if reach == MatchSession.ALL and settings.ALL_NITS_LIVE:
+        q |= Q(reach=MatchSession.ALL)
+    return q
+
+
+def same_reach(a, b):
+    """Same NIT, or both chose All NITs."""
+    if a.user.campus == b.user.campus:
+        return True
+    return reach_of(a) == MatchSession.ALL and reach_of(b) == MatchSession.ALL
+
+
 def compatible(a, b):
+    if not same_reach(a, b):
+        return False
     pa, pb = a.user.profile, b.user.profile
     if pa.is_minor != pb.is_minor:  # under-18s are matched only with under-18s
         return False
@@ -102,6 +125,7 @@ def try_match(session):
         return session
     around = now - timedelta(minutes=settings.MATCH_ACTIVE_MINUTES)
     candidates = (MatchSession.objects.active().filter(created_at__lte=settled).exclude(user_id__in=excluded)
+                  .filter(reach_q(session.user, reach_of(session)))
                   .exclude(user__restriction__no_matchmaking=True)
                   .annotate(away=Case(When(user__last_seen__gte=around, then=Value(0)), default=Value(1),
                                       output_field=IntegerField()))

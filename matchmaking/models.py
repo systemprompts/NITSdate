@@ -13,11 +13,15 @@ class MatchSessionQuerySet(models.QuerySet):
 class MatchSession(models.Model):
     SEARCHING, MATCHED, CANCELLED, EXPIRED = "searching", "matched", "cancelled", "expired"
     STATUSES = [(SEARCHING, "Searching"), (MATCHED, "Matched"), (CANCELLED, "Cancelled"), (EXPIRED, "Expired")]
+    CAMPUS, ALL = "campus", "all"
+    REACHES = [(CAMPUS, "Only my NIT"), (ALL, "All NITs")]
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="match_sessions")
     status = models.CharField(max_length=10, choices=STATUSES, default=SEARCHING)
     # who they want to meet in this search (Any by default; unrelated to the profile's "I like")
     genders = models.CharField(max_length=40, blank=True, help_text="Comma separated; empty = any gender")
+    # only people at their own NIT, or (when settings.ALL_NITS_LIVE) anyone who also chose all NITs
+    reach = models.CharField(max_length=8, choices=REACHES, default=CAMPUS)
     # filters
     min_age = models.PositiveSmallIntegerField(default=18)
     max_age = models.PositiveSmallIntegerField(default=30)

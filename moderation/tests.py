@@ -511,7 +511,6 @@ class AccountToolsTests(TestCase):
         self.bob.refresh_from_db()
         self.assertTrue(self.bob.is_active)
 
-    @override_settings(ALLOWED_EMAIL_DOMAIN="nits.ac.in")
     def test_college_rule_and_allowlist(self):
         from accounts.adapters import may_sign_in
         self.assertTrue(may_sign_in("x_ug_23@cse.nits.ac.in"))
@@ -521,7 +520,6 @@ class AccountToolsTests(TestCase):
         self.assertTrue(may_sign_in("friend@gmail.com"))
         self.assertTrue(ModAction.objects.filter(action="allowed email").exists())
 
-    @override_settings(ALLOWED_EMAIL_DOMAIN="nits.ac.in")
     def test_existing_outside_session_is_signed_out_until_allowed(self):
         outsider = make_user("Out Sider", "male", 20, "female")
         outsider.email = "outsider@gmail.com"                                    # joined before the rule

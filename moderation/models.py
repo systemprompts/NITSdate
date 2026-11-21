@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.db import models
 
+from accounts.campuses import CAMPUS_CHOICES, default_campus
+
 
 class ModeratorGrant(models.Model):
     """Emails an admin gave moderator access. Works before the person has signed up."""
@@ -17,9 +19,11 @@ class ModeratorGrant(models.Model):
 
 
 class AllowedEmail(models.Model):
-    """Emails moderators let in even though they aren't college addresses (see ALLOWED_EMAIL_DOMAIN)."""
+    """Emails moderators let in even though they aren't college addresses of an open NIT
+    (settings.OPEN_CAMPUSES). `campus` is the NIT their account belongs to."""
     email = models.EmailField(unique=True)
     note = models.CharField(max_length=200, blank=True)
+    campus = models.CharField(max_length=20, choices=CAMPUS_CHOICES, default=default_campus)
     added_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
 

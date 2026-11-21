@@ -4,6 +4,8 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from accounts.campuses import CAMPUS_CHOICES, campus_name
+
 
 def hot_score(score, created_at):
     """Reddit's classic "hot" rank. Stored on the post so the feed can sort and
@@ -14,7 +16,14 @@ def hot_score(score, created_at):
 
 
 class Post(models.Model):
+    """A post in the author's Campus feed (only their NIT sees it) or in the All NITs feed."""
+    CAMPUS, ALL = "campus", "all"
+    AUDIENCES = [(CAMPUS, "Campus"), (ALL, "All NITs")]
+
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="posts")
+    audience = models.CharField(max_length=8, choices=AUDIENCES, default=CAMPUS)
+    campus = models.CharField(max_length=20, choices=CAMPUS_CHOICES, blank=True,
+                              help_text="The author's NIT when they posted.")
     title = models.CharField(max_length=200)
     body = models.TextField(blank=True)
     image = models.ImageField(upload_to="posts/%Y/%m/", blank=True)
@@ -25,7 +34,17 @@ class Post(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [models.Index(fields=["score", "created_at"])]  # the "Top" feed
+        indexes = [
+            models.Index(fields=["score", "created_at"]),
+            # each feed is paged straight from an index: a campus feed by (campus, audience), the
+            # All NITs feed by audience, each sorted Hot / New / Top
+            models.Index(fields=["campus", "audience", "-hot"], name="post_campus_hot"),
+            models.Index(fields=["campus", "audience", "-created_at"], name="post_campus_new"),
+            models.Index(fields=["campus", "audience", "-score", "-created_at"], name="post_campus_top"),
+            models.Index(fields=["audience", "-hot"], name="post_audience_hot"),
+            models.Index(fields=["audience", "-created_at"], name="post_audience_new"),
+            models.Index(fields=["audience", "-score", "-created_at"], name="post_audience_top"),
+        ]
 
     def __str__(self):
         return self.title
@@ -33,8 +52,14 @@ class Post(models.Model):
     def save(self, *args, **kwargs):
         if self.created_at is None:
             self.created_at = timezone.now()
+        if not self.campus:
+            self.campus = self.author.campus
         self.hot = hot_score(self.score, self.created_at)
         super().save(*args, **kwargs)
+
+    @property
+    def campus_name(self):
+        return campus_name(self.campus)
 
     @classmethod
     def set_score(cls, pk, score):

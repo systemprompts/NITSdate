@@ -228,11 +228,18 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
-# Empty = every Google account may sign in. "nits.ac.in" = only *@nits.ac.in
-# and *@<dept>.nits.ac.in.
 # shown on /privacy/ and /terms/ for account-deletion requests (leave empty to hide)
 CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "").strip()
-ALLOWED_EMAIL_DOMAIN = os.environ.get("ALLOWED_EMAIL_DOMAIN", "").strip().lower().lstrip("@.")
+
+# ---- which NITs (accounts/campuses.py) --------------------------------------------------------
+# Who may sign in: "all" = students of every listed NIT (their college Google account, any
+# departmental subdomain too); "silchar,warangal" = only those; "any" = every Google account
+# (testing only). Moderators can still let individual outside addresses in (Mod → Allowed emails).
+_open = os.environ.get("OPEN_CAMPUSES", "all").strip().lower()
+OPEN_CAMPUSES = _open if _open in {"all", "any"} else frozenset(c.strip() for c in _open.split(",") if c.strip())
+DEFAULT_CAMPUS = os.environ.get("DEFAULT_CAMPUS", "silchar").strip().lower()   # admins and outsiders
+# The All NITs feed and "match with all NITs" are built but show "Coming soon" until this is on.
+ALL_NITS_LIVE = env_bool("ALL_NITS_LIVE", False)
 
 # Password-less test login for trying the site with many users locally.
 DEV_LOGIN = env_bool("DEV_LOGIN", DEBUG)

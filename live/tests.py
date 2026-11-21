@@ -113,9 +113,8 @@ class LiveSocketTests(TransactionTestCase):
         outsider = await sync_to_async(make_user)("Out Sider")
         await sync_to_async(User.objects.filter(pk=outsider.pk).update)(email="out.sider@gmail.com")
         client = await sync_to_async(signed_in)(outsider)
-        with self.settings(ALLOWED_EMAIL_DOMAIN="nits.ac.in"):
-            socket, connected = await open_socket(client)
-            await assert_refused(self, socket, connected)
+        socket, connected = await open_socket(client)
+        await assert_refused(self, socket, connected)
 
     async def test_refuses_pages_on_other_sites(self):
         socket, connected = await open_socket(self.ca, origin=(b"origin", b"https://evil.example"))

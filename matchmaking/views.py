@@ -16,7 +16,7 @@ from moderation.permissions import restriction_for
 from .models import MatchSession
 from live.publish import push_badges
 
-from .services import PENDING, expire_stale, try_match
+from .services import PENDING, expire_stale, reach_q, try_match
 
 FILTERS = [
     ("looking_for", "Here for", LOOKING_FOR_CHOICES,
@@ -84,7 +84,12 @@ def match_home(request):
         "gender_choices": GENDER_CHOICES,
         "selected_genders": [],                        # every search starts at Any
         "history": history,
-        "searching_now": MatchSession.objects.active().exclude(user=me).count(),
+        # people a search could actually meet: same NIT, plus (once live) All NITs searchers elsewhere
+        "searching_now": MatchSession.objects.active().exclude(user=me).filter(reach_q(me, MatchSession.CAMPUS)).count(),
+        "searching_all": (MatchSession.objects.active().exclude(user=me).filter(reach_q(me, MatchSession.ALL)).count()
+                          if settings.ALL_NITS_LIVE else 0),
+        "reach_choices": MatchSession.REACHES,
+        "reach": (last.reach if last and settings.ALL_NITS_LIVE else MatchSession.CAMPUS),
         "search_hours": settings.MATCH_SEARCH_HOURS,
         "cooldown_days": settings.MATCH_COOLDOWN_DAYS,
         "connect_after": settings.MATCH_CONNECT_MESSAGES,
@@ -122,7 +127,10 @@ def start(request):
     if min_age > max_age:
         messages.error(request, "The minimum age can't be above the maximum age.")
         return redirect("match")
-    chosen = {"genders": _chosen_genders(request.POST.getlist("genders"))}
+    chosen = {"genders": _chosen_genders(request.POST.getlist("genders")),
+              # All NITs is "coming soon" until settings.ALL_NITS_LIVE: every search stays on campus
+              "reach": (MatchSession.ALL if request.POST.get("reach") == MatchSession.ALL and settings.ALL_NITS_LIVE
+                        else MatchSession.CAMPUS)}
     for key, _, choices, _ in FILTERS:
         on = bool(request.POST.get(f"use_{key}"))   # an unticked filter means "anyone"
         picked = set(request.POST.getlist(key)) if on else set()
