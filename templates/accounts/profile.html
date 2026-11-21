@@ -49,6 +49,7 @@
         </form>
         <small class="muted">{{ requests_left }} of {{ per_day }} requests left today</small>
       {% endif %}
+      {% if is_mod and not preview %}<a class="btn btn-sm" href="{% url 'mod_user' owner.pk %}">{% icon 'shield' 15 %} Moderate</a>{% endif %}
       {% if not preview %}{% include "accounts/_block_menu.html" with target=owner block=my_block next=request.path label="Block" %}{% endif %}
     </div>
   </section>

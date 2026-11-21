@@ -18,6 +18,37 @@ from .models import AllowedEmail, ModAction, ModeratorGrant, Report, Restriction
 
 
 @override_settings(MATCH_REVEAL_SECONDS=0)
+class ModerateButtonTests(TestCase):
+    """Mods and admins get a "Moderate" button on any profile; nobody else sees it."""
+
+    def setUp(self):
+        self.owner = make_user("Owen Paul")
+        self.viewer = make_user("Vera Sen")
+        self.url = reverse("profile", args=[self.owner.pk])
+        self.target = reverse("mod_user", args=[self.owner.pk])
+
+    def test_students_dont_see_it(self):
+        self.client.force_login(self.viewer)
+        self.assertNotContains(self.client.get(self.url), self.target)
+
+    def test_moderators_and_admins_do(self):
+        ModeratorGrant.objects.create(email=self.viewer.email)
+        self.client.force_login(self.viewer)
+        page = self.client.get(self.url)
+        self.assertContains(page, f'href="{self.target}"')
+        self.assertContains(page, "Moderate")
+        User.objects.filter(pk=self.owner.pk).update(is_superuser=True)
+        admin = User.objects.get(pk=self.owner.pk)
+        self.client.force_login(admin)
+        self.assertContains(self.client.get(reverse("profile", args=[self.viewer.pk])),
+                            f'href="{reverse("mod_user", args=[self.viewer.pk])}"')
+
+    def test_not_in_the_view_as_a_stranger_preview(self):
+        ModeratorGrant.objects.create(email=self.owner.email)
+        self.client.force_login(self.owner)
+        self.assertNotContains(self.client.get(self.url + "?as=public"), self.target)
+
+
 class ModerationTests(TestCase):
     def setUp(self):
         self.alice = make_user("Alice Mod", "female", 20, "male")
