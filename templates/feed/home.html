@@ -36,8 +36,9 @@
         {% include "feed/_post.html" %}
       {% empty %}
         <div class="empty-state">
-          <p>Nothing here yet. Start the conversation.</p>
+          <p>{% if feed == "all" %}Nothing here yet. Start the conversation.{% else %}Nobody at {{ user.campus_name }} has posted yet. Be the first.{% endif %}</p>
           <a href="{% url 'new_post' %}{% if feed == 'all' %}?to=all{% endif %}" class="btn btn-primary">Write a post</a>
+          {% if feed != "all" and ALL_NITS_LIVE %}<a href="{% url 'all_nits' %}" class="btn">See All NITs</a>{% endif %}
         </div>
       {% endfor %}
     </div>

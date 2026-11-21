@@ -322,10 +322,22 @@ def users(request):
     if q:
         qs = qs.filter(Q(email__icontains=q) | Q(alias__icontains=q) | Q(username__icontains=q)
                        | Q(profile__name__icontains=q))
+    campus = request.GET.get("campus", "")
+    if by_code(campus):
+        qs = qs.filter(campus=campus)
+    else:
+        campus = ""
     qs = qs.annotate(open_reports=Count("reports_received", filter=Q(reports_received__status=Report.OPEN)),
                      removed_by_mod=Exists(_mod_deletions().filter(target_user=OuterRef("pk"))))
     page = Paginator(qs, 40).get_page(request.GET.get("page"))
-    return render(request, "moderation/users.html", {"page": page, "q": q})
+    # how many active accounts each NIT has, biggest first (only NITs with anyone)
+    per_campus = (User.objects.filter(is_active=True).values_list("campus").annotate(n=Count("id")).order_by())
+    campuses = sorted(((code, by_code(code).name, n) for code, n in per_campus if by_code(code)),
+                      key=lambda c: (-c[2], c[1]))
+    return render(request, "moderation/users.html", {
+        "page": page, "q": q, "campus": campus, "campuses": campuses,
+        "active_total": sum(n for *_, n in campuses),
+    })
 
 
 def _can_restrict(mod, target):

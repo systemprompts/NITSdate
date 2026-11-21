@@ -152,6 +152,8 @@ def room(request, pk):
         "gender": None if conv.is_match else visible_gender(other, me),
         "blind_name": conv.nickname_for(other) if conv.is_match else None,
         "my_blind_name": conv.nickname_for(me) if conv.is_match else None,
+        # a match across NITs says where they are; same-NIT matches don't need it
+        "other_campus": (other.campus_name if conv.is_match and other and other.campus != me.campus else ""),
         "archived": archived,
         "messages_html": _render_messages(current, me, conv),
         "last_id": last_id,

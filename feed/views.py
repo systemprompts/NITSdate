@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -9,11 +11,12 @@ from django.db.models.functions import Coalesce, RowNumber
 from django.http import Http404, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from accounts.images import process_image, serve_image
-from moderation.permissions import restriction_for
+from moderation.permissions import is_mod, restriction_for
 from notifications.models import Notification
 from notifications.services import notify, withdraw_upvote
 
@@ -66,6 +69,15 @@ def _limited(request, flag, text):
 NO_INTERACTION = "A moderator has turned off voting and commenting for your account."
 
 
+def _too_fast(user, model, per_hour):
+    """True once `user` has written `per_hour` posts (or comments) in the last hour. It keeps the
+    All NITs feed from being flooded; moderators aren't limited."""
+    since = timezone.now() - timedelta(hours=1)
+    if model.objects.filter(author=user, created_at__gte=since).count() < per_hour:
+        return False
+    return not is_mod(user)
+
+
 @login_required
 def new_post(request):
     if _limited(request, "no_posting", "A moderator has turned off posting for your account."):
@@ -79,7 +91,10 @@ def new_post(request):
                 # All NITs is "coming soon" until settings.ALL_NITS_LIVE: until then everything is a campus post
                 "audience": (Post.ALL if request.POST.get("audience") == Post.ALL and settings.ALL_NITS_LIVE
                              else Post.CAMPUS)}
-        if not data["title"]:
+        if _too_fast(request.user, Post, settings.POSTS_PER_HOUR):
+            errors["title"] = (f"You've written {settings.POSTS_PER_HOUR} posts in the last hour. "
+                               "Please wait a little before posting again.")
+        elif not data["title"]:
             errors["title"] = "Give your post a title."
         elif len(data["title"]) > 200:
             errors["title"] = "Titles can be at most 200 characters."
@@ -278,6 +293,9 @@ def add_comment(request, pk):
         return redirect("post_detail", pk=pk)
     if len(body) > 5000:
         messages.error(request, "Comments can be at most 5,000 characters.")
+        return redirect("post_detail", pk=pk)
+    if _too_fast(request.user, Comment, settings.COMMENTS_PER_HOUR):
+        messages.error(request, "You've commented a lot in the last hour. Please wait a little before commenting again.")
         return redirect("post_detail", pk=pk)
     comment = Comment.objects.create(post=post, author=request.user, parent=parent, body=body)
     Post.objects.filter(pk=pk).update(comment_count=F("comment_count") + 1)

@@ -4,6 +4,10 @@
 {% include "moderation/_nav.html" with section="users" %}
 <form method="get" class="search-row">
   <input name="q" value="{{ q }}" placeholder="Search by name, email or randomized name" aria-label="Search users">
+  <select name="campus" aria-label="NIT">
+    <option value="">Every NIT ({{ active_total }})</option>
+    {% for code, name, n in campuses %}<option value="{{ code }}" {% if code == campus %}selected{% endif %}>{{ name }} ({{ n }})</option>{% endfor %}
+  </select>
   <button class="btn">{% icon 'search' 16 %} Search</button>
 </form>
 <section class="sheet list-card">
@@ -21,7 +25,7 @@
       </span>
     </a>
   {% empty %}
-    <p class="empty-state">No users match “{{ q }}”.</p>
+    <p class="empty-state">No users match{% if q %} “{{ q }}”{% endif %}{% if campus %} at that NIT{% endif %}.</p>
   {% endfor %}
 </section>
 {% if page.has_other_pages %}

@@ -204,3 +204,51 @@ class MatchReachTests(TestCase):
         self.assertIn("1 across All NITs", page)
         self.client.post(reverse("match_start"), {"min_age": 18, "max_age": 30, "reach": "all"})
         self.assertEqual(MatchSession.objects.get(user=self.s).reach, MatchSession.ALL)
+
+
+@override_settings(ALL_NITS_LIVE=True, MEDIA_ROOT="/tmp/nitsdate-test-media")
+class AllNitsLiveTests(TestCase):
+    """What changes once All NITs is switched on: where people are from is shown wherever two NITs meet."""
+
+    def setUp(self):
+        self.s = make_user("Sana Paul", gender="female", likes="male")         # NIT Silchar
+        self.w = at("student.nitw.ac.in", "Wren Iyer", gender="male", likes="female")
+
+    def test_comments_on_all_nits_posts_show_the_commenters_nit(self):
+        everyone = Post.objects.create(author=self.s, title="hello every NIT", audience=Post.ALL)
+        campus = Post.objects.create(author=self.s, title="campus only")
+        Comment.objects.create(post=everyone, author=self.w, body="hi from Warangal")
+        Comment.objects.create(post=campus, author=self.s, body="campus talk")
+        self.client.force_login(self.s)
+        page = self.client.get(reverse("post_detail", args=[everyone.pk])).content.decode()
+        self.assertIn('<span class="pill pill-campus">NIT Warangal</span>', page)
+        page = self.client.get(reverse("post_detail", args=[campus.pk])).content.decode()
+        self.assertNotIn('pill-campus">NIT Silchar</span>', page)        # a campus post: everyone's from here
+
+    def test_a_match_across_nits_says_where_they_are(self):
+        from chat.services import create_match_conversation
+        conv = create_match_conversation(self.s, self.w)
+        self.client.force_login(self.s)
+        self.assertContains(self.client.get(reverse("chat_room", args=[conv.pk])), "At NIT Warangal ·")
+        same = create_match_conversation(self.s, make_user("Sid Roy", gender="male", likes="female"))
+        self.assertNotContains(self.client.get(reverse("chat_room", args=[same.pk])), "At NIT")
+
+    def test_an_empty_campus_feed_points_to_all_nits(self):
+        self.client.force_login(self.w)
+        page = self.client.get("/")
+        self.assertContains(page, "Nobody at NIT Warangal has posted yet.")
+        self.assertContains(page, "See All NITs")
+        with self.settings(ALL_NITS_LIVE=False):
+            self.assertNotContains(self.client.get("/"), "See All NITs")
+
+    def test_mods_can_list_one_nits_users(self):
+        mod = make_user("Mona Das")
+        ModeratorGrant.objects.create(email=mod.email)
+        self.client.force_login(mod)
+        page = self.client.get(reverse("mod_users"), {"campus": "warangal"}).content.decode()
+        self.assertIn(self.w.email, page)
+        self.assertNotIn(self.s.email, page)
+        self.assertIn("NIT Warangal (1)", page)
+        self.assertIn("NIT Silchar (2)", page)
+        everyone = self.client.get(reverse("mod_users"), {"campus": "nowhere"}).content.decode()
+        self.assertIn(self.s.email, everyone)                     # an unknown NIT means every NIT

@@ -697,8 +697,9 @@ label.btn { cursor: pointer; }
 .mod-msg time { font-size: .8rem; white-space: nowrap; }
 .mod-msg.is-reported { background: var(--red-soft); box-shadow: inset 3px 0 0 var(--red); }
 @media (max-width: 600px) { .mod-msg { grid-template-columns: 1fr auto; } .mod-msg .what { grid-column: 1 / -1; } }
-.search-row { display: flex; gap: .5rem; margin-bottom: 1rem; }
-.search-row input { flex: 1; }
+.search-row { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.search-row input { flex: 1; min-width: 12rem; }
+.search-row select { width: auto; max-width: 15rem; }
 .limit-flags { display: grid; gap: .15rem; }
 .subtabs { margin-top: -.4rem; }
 .report-row .snippet { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

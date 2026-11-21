@@ -7,6 +7,7 @@
       {% else %}
         <a href="{% url 'profile' c.author_id %}" class="author">{% avatar c.author user "xs" %}<span>{{ c.author|name_html:user }}</span></a>
         {% if c.author_id == post.author_id %}<span class="op">OP</span>{% endif %}
+        {% if post.audience == "all" %}<span class="pill pill-campus">{{ c.author.campus_name }}</span>{% endif %}
       {% endif %}
       <time class="muted" datetime="{{ c.created_at|date:'c' }}">{{ c.created_at|naturaltime }}</time>
       <button class="link collapsed-note" data-collapse>[+] {{ c.n_replies }} repl{{ c.n_replies|pluralize:"y,ies" }}</button>

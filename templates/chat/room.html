@@ -13,7 +13,7 @@
       {% avatar other user "md" blind_name %}
       <div class="grow">
         <b class="blind">{{ title }}</b>
-        <small class="muted">You appear as {{ my_blind_name }}</small>
+        <small class="muted">{% if other_campus %}At {{ other_campus }} · {% endif %}You appear as {{ my_blind_name }}</small>
       </div>
     {% else %}
       <a href="{% url 'profile' other.pk %}">{% avatar other user "md" %}</a>

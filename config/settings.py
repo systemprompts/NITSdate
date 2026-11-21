@@ -246,6 +246,8 @@ DEV_LOGIN = env_bool("DEV_LOGIN", DEBUG)
 
 # ---- product rules (configuration, not runtime state) ------------------
 PROFILE_REQUESTS_PER_DAY = env_int("PROFILE_REQUESTS_PER_DAY", 10)
+POSTS_PER_HOUR = env_int("POSTS_PER_HOUR", 5)                    # per person, any feed (mods aren't limited)
+COMMENTS_PER_HOUR = env_int("COMMENTS_PER_HOUR", 60)             # per person, replies included
 MATCH_CONNECT_MESSAGES = env_int("MATCH_CONNECT_MESSAGES", 10)   # each side, in the match chat
 PRIORITY_MESSAGES = env_int("PRIORITY_MESSAGES", 100)            # each side, whole conversation
 MATCH_SEARCH_HOURS = env_int("MATCH_SEARCH_HOURS", 24)           # a search stays open this long

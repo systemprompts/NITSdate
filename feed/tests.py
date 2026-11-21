@@ -129,3 +129,38 @@ class ScaleTests(TestCase):
             self.assertEqual(resp.status_code, 200)
             self.assertLess(queries, 60, url)           # no query per connection any more
             self.report.append(f"{url}, 300 connections: {per_page} per page, {queries} queries, {ms:.0f} ms")
+
+
+class PostingLimitTests(TestCase):
+    """Nobody can flood a feed: a few posts and a fair number of comments an hour, moderators excepted."""
+
+    def setUp(self):
+        self.user = make_user("Asha Rao")
+        self.client.force_login(self.user)
+
+    def test_posts_per_hour(self):
+        with self.settings(POSTS_PER_HOUR=2):
+            for title in ("one", "two", "three"):
+                self.client.post(reverse("new_post"), {"title": title})
+            self.assertEqual(list(Post.objects.order_by("id").values_list("title", flat=True)), ["one", "two"])
+            page = self.client.post(reverse("new_post"), {"title": "three"})
+            self.assertContains(page, "written 2 posts in the last hour.")
+            Post.objects.update(created_at=timezone.now() - timedelta(minutes=61))   # an hour later
+            self.client.post(reverse("new_post"), {"title": "three"})
+            self.assertTrue(Post.objects.filter(title="three").exists())
+
+    def test_comments_per_hour(self):
+        post = Post.objects.create(author=self.user, title="t")
+        with self.settings(COMMENTS_PER_HOUR=2):
+            for body in ("a", "b", "c"):
+                self.client.post(reverse("add_comment", args=[post.pk]), {"body": body})
+        self.assertEqual(Comment.objects.filter(post=post).count(), 2)
+        self.assertEqual(Post.objects.get(pk=post.pk).comment_count, 2)
+
+    def test_moderators_arent_limited(self):
+        from moderation.models import ModeratorGrant
+        ModeratorGrant.objects.create(email=self.user.email)
+        with self.settings(POSTS_PER_HOUR=1):
+            for title in ("one", "two"):
+                self.client.post(reverse("new_post"), {"title": title})
+        self.assertEqual(Post.objects.count(), 2)
