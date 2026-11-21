@@ -14,7 +14,8 @@ from matchmaking.models import MatchSession
 
 from accounts.models import Profile
 
-from .models import AllowedEmail, ModAction, ModeratorGrant, Report, Restriction
+from .models import AllowedEmail, FormerAccount, ModAction, ModeratorGrant, Report, Restriction
+from .services import delete_account
 
 
 @override_settings(MATCH_REVEAL_SECONDS=0)
@@ -565,3 +566,76 @@ class AccountToolsTests(TestCase):
         entry = AllowedEmail.objects.get()
         self.client.post(reverse("mod_allowlist"), {"action": "remove", "entry": entry.pk})
         self.assertRedirects(c.get("/"), reverse("login"), fetch_redirect_response=False)
+
+
+class FormerAccountTests(TestCase):
+    """Deleting an account keeps only its email, date of birth and moderator limits, so signing up
+    again with the same email brings the limits and the date of birth back."""
+
+    def setUp(self):
+        self.me = make_user("Rina Das")
+        self.email = self.me.email
+        self.born = self.me.profile.birth_date
+        Restriction.objects.create(user=self.me, no_posting=True, request_limit=2, note="spam links")
+
+    def delete_myself(self):
+        self.client.force_login(self.me)
+        self.client.post(reverse("delete_my_account"), {"phrase": "I want to stay single"})
+
+    def test_only_email_birth_date_and_limits_are_kept(self):
+        self.delete_myself()
+        old = User.objects.get(pk=self.me.pk)
+        self.assertEqual((old.email, old.is_active, old.has_profile), ("", False, False))
+        self.assertFalse(Restriction.objects.filter(user=old).exists())
+        former = FormerAccount.objects.get()
+        self.assertEqual((former.email, former.birth_date, former.deletions, former.last_account_id),
+                         (self.email, self.born, 1, old.pk))
+        self.assertEqual((former.limits["no_posting"], former.limits["request_limit"], former.limits["no_matchmaking"]),
+                         (True, 2, False))
+
+    def test_limits_come_back_when_they_sign_up_again(self):
+        self.delete_myself()
+        again = User.objects.create(username="rina.again", email=self.email.upper())
+        r = Restriction.objects.get(user=again)
+        self.assertEqual((r.no_posting, r.request_limit, r.no_messaging), (True, 2, False))
+        self.assertIn("Carried over from deleted account", r.note)
+        self.assertIn("spam links", r.note)
+
+    def test_no_limits_means_nothing_carried_over(self):
+        Restriction.objects.filter(user=self.me).update(no_posting=False, request_limit=None)
+        self.delete_myself()
+        self.assertEqual(FormerAccount.objects.get().limits, {})
+        again = User.objects.create(username="rina.again", email=self.email)
+        self.assertFalse(Restriction.objects.filter(user=again).exists())
+
+    def test_date_of_birth_comes_back_and_cant_be_changed(self):
+        self.delete_myself()
+        again = User.objects.create(username="rina.again", email=self.email)
+        self.client.force_login(again)
+        page = self.client.get(reverse("onboarding"))
+        self.assertContains(page, "Kept from your earlier nitsdate account")
+        self.assertContains(page, f'value="{self.born.isoformat()}"')
+        self.assertContains(page, "disabled")
+        self.client.post(reverse("onboarding"), {"name": "Rina", "gender": "female", "birth_date": "2000-01-01",
+                                                 "likes": ["male"], "profile_visible": "on"})
+        self.assertEqual(Profile.objects.get(user=again).birth_date, self.born)
+
+    def test_moderators_see_it_both_ways(self):
+        mod = make_user("Mona Sen")
+        ModeratorGrant.objects.create(email=mod.email)
+        self.delete_myself()
+        again = User.objects.create(username="rina.again", email=self.email)
+        self.client.force_login(mod)
+        self.assertContains(self.client.get(reverse("mod_user", args=[again.pk])), "This email deleted an earlier account")
+        kept = self.client.get(reverse("mod_user", args=[self.me.pk]))
+        self.assertContains(kept, "Kept after deletion")
+        self.assertContains(kept, self.email)
+
+    def test_deleting_twice_counts_and_keeps_the_newer_limits(self):
+        self.delete_myself()
+        again = User.objects.create(username="rina.again", email=self.email)
+        Restriction.objects.filter(user=again).update(no_posting=False, no_messaging=True)
+        delete_account(again)
+        former = FormerAccount.objects.get()
+        self.assertEqual((former.deletions, former.limits["no_messaging"], former.limits["no_posting"]), (2, True, False))
+        self.assertEqual(former.birth_date, self.born)    # the second account never got a profile

@@ -5,8 +5,10 @@
 
 <section class="sheet narrow-wide">
   <h1>Delete your account?</h1>
-  <p>This deletes <b>everything</b>, for good: your profile, photos, posts, comments, connections and every chat
-    you were in. Chats disappear for the other person too. It can't be undone.</p>
+  <p>This deletes your profile, photos, posts, comments, connections and every chat you were in, for good.
+    Chats disappear for the other person too. It can't be undone.</p>
+  <p class="muted small">Only your email address and date of birth are kept, together with any limits a moderator
+    set on your account. If you sign up again with the same email, you get the same date of birth and those limits.</p>
 
   <ul class="plain-list">
     <li><span>Posts</span><b>{{ summary.posts }}</b></li>
@@ -14,7 +16,7 @@
     <li><span>Chats</span><b>{{ summary.chats }}</b></li>
     <li><span>Photos</span><b>{{ summary.photos }}</b></li>
   </ul>
-  <p class="muted small">If you sign in with Google again later, you'll start over as a brand-new account.</p>
+  <p class="muted small">If you sign in with Google again later, you'll start over with a new, empty account.</p>
 
   <form method="post" class="stack">
     {% csrf_token %}

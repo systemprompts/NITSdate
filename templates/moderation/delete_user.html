@@ -7,8 +7,9 @@
 <section class="sheet narrow-wide">
   <h1>Delete {{ profile.name|default:target.email }}'s account?</h1>
   <p><b>{{ target.email }}</b>{% if profile %} · shown to others as {{ target.alias }}{% endif %}</p>
-  <p class="muted">This can't be undone. Their email, name, profile, photos, connections, blocks and Google sign-in link
-    are removed, and they're signed out everywhere. If they sign in with Google again they start as a brand-new account.</p>
+  <p class="muted">This can't be undone. Their name, profile, photos, connections, blocks and Google sign-in link
+    are removed, and they're signed out everywhere. Their email, date of birth and any limits are kept: if they sign in
+    with Google again they start a new, empty account with the same date of birth and the same limits.</p>
 
   <ul class="plain-list">
     <li><span>Posts</span><b>{{ summary.posts }}</b></li>

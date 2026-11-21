@@ -20,7 +20,7 @@ from django.views.decorators.http import require_POST
 from chat.services import WorkflowError, accept_connection_request, connected_conversation
 from feed.models import Post
 from feed.visibility import visible_q
-from moderation.models import ModeratorGrant
+from moderation.models import FormerAccount, ModeratorGrant
 from moderation.permissions import is_mod, request_limit
 from moderation.services import account_summary, delete_account
 
@@ -131,7 +131,13 @@ def onboarding(request):
     if request.user.has_profile:
         return redirect("home")
     initial_name = request.session.get("onboarding_name") or request.user.get_full_name()
-    form = OnboardingForm(request.POST or None, initial={"name": initial_name})
+    # coming back after deleting an account: the date of birth stays what it was
+    former = (FormerAccount.objects.filter(email__iexact=request.user.email).exclude(birth_date=None).first()
+              if request.user.email else None)
+    initial = {"name": initial_name, **({"birth_date": former.birth_date} if former else {})}
+    form = OnboardingForm(request.POST or None, initial=initial)
+    if former:
+        form.fields["birth_date"].disabled = True   # ignores whatever is posted
     if request.method == "POST" and form.is_valid():
         d = form.cleaned_data
         order = [g for g, _ in GENDER_CHOICES]
@@ -145,7 +151,8 @@ def onboarding(request):
         messages.success(request, "Welcome to nitsdate! Add more about yourself whenever you like — "
                                   "every detail has its own privacy button.")
         return redirect("my_profile")
-    return render(request, "accounts/onboarding.html", {"form": form, "alias": request.user.alias})
+    return render(request, "accounts/onboarding.html", {"form": form, "alias": request.user.alias,
+                                                        "dob_kept": bool(former)})
 
 
 # ---- own profile -----------------------------------------------------------------

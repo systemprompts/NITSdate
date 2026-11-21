@@ -28,7 +28,7 @@ from matchmaking.models import MatchSession
 from accounts.adapters import email_allowed, may_sign_in
 from accounts.campuses import CAMPUS_CHOICES, by_code, campus_of_email, open_campuses
 
-from .models import AllowedEmail, ModAction, ModeratorGrant, Report, Restriction
+from .models import AllowedEmail, FormerAccount, ModAction, ModeratorGrant, Report, Restriction
 from .permissions import is_admin, is_mod
 from .services import account_summary, delete_account, describe
 
@@ -406,6 +406,9 @@ def user_detail(request, user_id):
     return render(request, "moderation/user_detail.html", {
         "target": target, "profile": profile,
         "deletion": None if target.is_active else _mod_deletions().filter(target_user=target).select_related("mod").first(),
+        # an earlier deleted account with this email (active), or what was kept of this one (deleted)
+        "former": (FormerAccount.objects.filter(email__iexact=target.email).first() if target.email
+                   else FormerAccount.objects.filter(last_account=target).first()),
         "rows": profile_rows(profile, SELF) if profile else [],
         "privacy_labels": PRIVACY_LABELS,
         "photos": GalleryPhoto.objects.filter(user=target),

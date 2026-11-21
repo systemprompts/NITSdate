@@ -62,7 +62,9 @@
   <p>You can delete your posts, comments and photos at any time. To delete your whole account and everything in
     it, use <b>Delete my account</b> at the bottom of your profile page{% if contact_email %}, or email
     <a href="mailto:{{ contact_email }}">{{ contact_email }}</a> from the address you sign in with{% endif %}.
-    It is removed from the site straight away, and drops out of backups within 14 days.</p>
+    It is removed from the site straight away, and drops out of backups within 14 days. Only your email address
+    and date of birth are kept, with any limits a moderator had set, so that signing up again with the same email
+    brings back the same date of birth and limits.</p>
 
   <p class="muted"><a href="{% url 'terms' %}">Terms</a> · <a href="/">Back to nitsdate</a></p>
 </article>

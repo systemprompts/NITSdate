@@ -108,3 +108,30 @@ class ModAction(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class FormerAccount(models.Model):
+    """What stays after an account is deleted, so moderator limits can't be escaped by deleting and
+    signing up again: the email (to recognise the person), their date of birth (so they can't come
+    back with a different age) and the limits moderators had set. Nothing else is kept."""
+    LIMIT_FIELDS = ("request_limit", "no_matchmaking", "no_posting", "no_interaction", "no_messaging",
+                    "profile_hidden", "note")
+
+    email = models.EmailField(unique=True)
+    birth_date = models.DateField(null=True, blank=True)
+    limits = models.JSONField(default=dict, blank=True, help_text="The account's Restriction when it was deleted")
+    deletions = models.PositiveSmallIntegerField(default=0)
+    last_deleted_at = models.DateTimeField(null=True, blank=True)
+    last_account = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name="+", help_text="The (now anonymous) account deleted last")
+
+    class Meta:
+        ordering = ["-last_deleted_at"]
+
+    def save(self, *args, **kwargs):
+        self.email = self.email.strip().lower()
+        super().save(*args, **kwargs)
+
+    @property
+    def has_limits(self):
+        return any(self.limits.get(f) not in (None, False, "") for f in self.LIMIT_FIELDS if f != "note")

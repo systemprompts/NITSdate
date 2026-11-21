@@ -9,6 +9,7 @@ from allauth.socialaccount.models import SocialAccount
 from django.db import transaction
 from django.db.models import Count, F, Q, Value
 from django.db.models.functions import Greatest
+from django.utils import timezone
 
 from accounts.models import Block, Connection, ConnectionRequest, GalleryPhoto, Profile
 from chat.models import Conversation, Message, PriorityRequest
@@ -18,7 +19,7 @@ from live.publish import close_user
 from matchmaking.models import MatchSession
 from notifications.models import Notification
 
-from .models import AllowedEmail, ModeratorGrant, Restriction
+from .models import AllowedEmail, FormerAccount, ModeratorGrant, Restriction
 
 
 def _conversations(user):
@@ -39,6 +40,25 @@ def account_summary(user):
 def describe(summary):
     return (f"{summary['posts']} posts, {summary['comments']} comments, "
             f"{summary['chats']} chats ({summary['messages']} messages they sent)")
+
+
+def remember_former_account(user, profile):
+    """Keep only the email, date of birth and moderator limits of an account being deleted, so the
+    limits come back if the same person signs up again (see moderation.signals)."""
+    email = (user.email or "").strip().lower()
+    if not email:
+        return
+    restriction = Restriction.objects.filter(user=user).first()
+    limits = ({f: getattr(restriction, f) for f in FormerAccount.LIMIT_FIELDS}
+              if restriction and restriction.is_active else {})
+    former, _ = FormerAccount.objects.get_or_create(email=email)
+    if profile and profile.birth_date:
+        former.birth_date = profile.birth_date
+    former.limits = limits
+    former.deletions += 1
+    former.last_deleted_at = timezone.now()
+    former.last_account = user
+    former.save()
 
 
 def delete_account(user, *, remove_content=False):
@@ -71,6 +91,7 @@ def delete_account(user, *, remove_content=False):
                                            status=PriorityRequest.PENDING).delete()
 
         profile = Profile.objects.filter(user=user).first()
+        remember_former_account(user, profile)
         if profile:
             keep(profile.photo)
         for photo in GalleryPhoto.objects.filter(user=user):

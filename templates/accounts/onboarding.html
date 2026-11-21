@@ -35,8 +35,12 @@
     <label class="field narrow-input dob {% if form.birth_date.errors %}has-error{% endif %}">
       <span>Date of birth <em class="req">required</em></span>
       {{ form.birth_date }}
+      {% if dob_kept %}
+      <small class="muted">Kept from your earlier nitsdate account, so it can't be changed here. Only a moderator can correct it.</small>
+      {% else %}
       <small class="muted">Your exact date of birth. Others only see your age (with its own privacy setting).
         Under-18s are matched and connected only with other under-18s. You can't change this later, so check it.</small>
+      {% endif %}
       {% if form.birth_date.errors %}<em class="error">{{ form.birth_date.errors|join:" " }}</em>{% endif %}
     </label>
 

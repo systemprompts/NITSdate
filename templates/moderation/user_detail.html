@@ -23,6 +23,14 @@
   <dl class="facts">
     <dt>Email</dt><dd><b>{{ target.email|default:"(removed)" }}</b></dd>
     <dt>NIT</dt><dd>{{ target.campus_name|default:"—" }}</dd>
+    {% if former and target.is_active %}
+    <dt>Came back</dt><dd>This email deleted an earlier account{% if former.deletions > 1 %} ({{ former.deletions }} times){% endif %},
+      last on {{ former.last_deleted_at|date:"j M Y" }}{% if former.last_account_id %} (<a href="{% url 'mod_user' former.last_account_id %}">#{{ former.last_account_id }}</a>){% endif %}.
+      {% if former.has_limits %}Its limits were carried over.{% endif %}</dd>
+    {% elif former %}
+    <dt>Kept after deletion</dt><dd>{{ former.email }}{% if former.birth_date %}, born {{ former.birth_date|date:"j M Y" }}{% endif %}{% if former.has_limits %}, with its limits{% endif %}.
+      <small class="muted">If this email signs up again, it gets the same date of birth and limits.</small></dd>
+    {% endif %}
     {% if profile %}<dt>Date of birth</dt><dd>
       <b>{{ profile.birth_date|date:"j F Y" }}</b> (age {{ profile.age }})
       {% if can_restrict %}
