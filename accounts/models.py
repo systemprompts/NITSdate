@@ -33,7 +33,8 @@ class User(AbstractUser):
     alias = models.CharField(max_length=40, unique=True, blank=True,
                              help_text="Randomized name shown when the real name is hidden.")
     # when they were last on the site (updated at most once a minute). Matchmaking uses it to pair
-    # people who are around first; moderators see it on the user's mod page. Never shown to students.
+    # people who are around first; moderators see it on the user's mod page; their Priority chats see
+    # "Active now / Active 5 minutes ago" (chat/presence.py). No other student sees it.
     last_seen = models.DateTimeField(null=True, blank=True, editable=False)
     # which notifications they want (set on the notifications page)
     notify_upvotes = models.BooleanField(default=True)

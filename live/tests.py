@@ -227,6 +227,45 @@ class LiveSocketTests(TransactionTestCase):
         await sync_to_async(fresh)(self.b)
         self.assertEqual(await sync_to_async(Matcher().run_once)(), 0)   # under MATCH_REVEAL_SECONDS old
 
+    async def test_typing_reaches_the_other_person_in_priority_chats_only(self):
+        conv = await sync_to_async(self.conversation)()            # an Inbox chat
+        sa, _ = await open_socket(self.ca)
+        sb, _ = await open_socket(self.cb)
+        await next_of(sa, "badges")
+        await next_of(sb, "badges")
+        await sa.send_json_to({"t": "typing", "conv": conv.pk})
+        self.assertTrue(await sb.receive_nothing(timeout=0.5))   # not a Priority chat
+
+        await sync_to_async(Conversation.objects.filter(pk=conv.pk).update)(tier=Conversation.PRIORITY)
+        sa2, _ = await open_socket(self.ca)                       # fresh socket: no cached answer
+        await next_of(sa2, "badges")
+        await sa2.send_json_to({"t": "typing", "conv": conv.pk})
+        self.assertEqual(await next_of(sb, "typing"), {"t": "typing", "conv": conv.pk})
+        await sa2.send_json_to({"t": "typing", "conv": conv.pk})  # again within 2 s: dropped
+        self.assertTrue(await sb.receive_nothing(timeout=0.5))
+        self.assertTrue(await sa2.receive_nothing(timeout=0.2))   # never echoed to the typer
+
+        stranger = await sync_to_async(make_user)("Chen Wu")
+        sc, _ = await open_socket(await sync_to_async(signed_in)(stranger))
+        await next_of(sc, "badges")
+        await sc.send_json_to({"t": "typing", "conv": conv.pk})   # not their chat
+        self.assertTrue(await sb.receive_nothing(timeout=0.5))
+        for sock in (sa, sa2, sb, sc):
+            await sock.disconnect()
+
+    async def test_seen_reaches_the_sender_in_priority_chats(self):
+        def priority_with_message():
+            conv = self.conversation()
+            Conversation.objects.filter(pk=conv.pk).update(tier=Conversation.PRIORITY)
+            self.ca.post(reverse("chat_send", args=[conv.pk]), {"text": "hi"}, HTTP_X_REQUESTED_WITH="fetch")
+            return conv
+        conv = await sync_to_async(priority_with_message)()
+        sa, _ = await open_socket(self.ca)
+        await next_of(sa, "badges")
+        await sync_to_async(self.cb.get)(reverse("chat_room", args=[conv.pk]))   # Bilal reads it
+        self.assertEqual(await next_of(sa, "chat"), {"t": "chat", "conv": conv.pk})
+        await sa.disconnect()
+
     async def test_deleting_an_account_disconnects_it(self):
         sb, _ = await open_socket(self.cb)
         await next_of(sb, "badges")

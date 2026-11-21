@@ -22,6 +22,7 @@ from matchmaking.services import PENDING
 from moderation.permissions import restriction_for
 
 from . import services
+from .presence import presence, receipt, shows_presence
 from .models import Conversation, Message, PriorityRequest
 
 PAGE = 50  # messages per load in a chat
@@ -77,6 +78,8 @@ def inbox(request):
         conv.gender = None if conv.is_match else visible_gender(conv.other_user, me)  # blind chats stay blind
         conv.unread = unread.get(conv.pk, (None, 0))[1]
         conv.msg_blocked = conv.other_id(me) in blocked_with
+        if conv.tier == Conversation.PRIORITY and conv.is_active and not conv.msg_blocked:
+            conv.presence = presence(conv.other_user)
     tabs = [{"key": t, "label": TAB_LABELS[t], "unread": tab_unread[t], "count": tab_count.get(t, 0)} for t in TAB_ORDER]
     return render(request, "chat/inbox.html", {"tab": tab, "tabs": tabs, "conversations": page, "page": page,
                                                "inbox_version": services.inbox_version(me, sum(tab_unread.values()))})
@@ -154,6 +157,9 @@ def room(request, pk):
         "panel_key": panel_key,
         "msg_blocked": messages_blocked(me, other),
         "no_messaging": restriction_for(me).no_messaging,
+        # Priority chats: "Active now / Active 5 minutes ago", "typing…" and "Seen"
+        "presence": presence(other) if shows_presence(conv) else None,
+        "receipt": receipt(conv, me) if shows_presence(conv) else "",
         "my_block": Block.objects.filter(blocker=me, blocked=other).first(),
         "tier_label": TAB_LABELS[conv.tier],
     })
@@ -193,7 +199,11 @@ def poll(request, pk):
     panel_html, panel_key = _panel(request, conv)
     if new:
         conv.mark_read(me, new[-1].pk)
+    extra = {}
+    if shows_presence(conv):
+        extra = {"presence": presence(conv.other(me)), "receipt": receipt(conv, me)}
     return JsonResponse({
+        **extra,
         "tier": conv.tier,
         "active": conv.is_active,
         "blocked": messages_blocked(conv.user1_id, conv.user2_id),

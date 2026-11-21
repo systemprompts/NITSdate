@@ -23,6 +23,7 @@
           <b class="{% if c.tier == 'match' %}blind{% endif %}">{{ c.title }}{% if c.gender %}&nbsp;{% gender_mark c.gender %}{% endif %} {% hidden_mark c.name_hidden %}</b>
           <small class="muted">{{ c.last_message_at|naturaltime }}</small>
         </div>
+        {% if c.presence.text %}<small class="muted presence {% if c.presence.now %}online{% endif %}">{{ c.presence.text }}</small>{% endif %}
         <div class="convo-preview">
           {% if not c.is_active %}<span class="pill">ended</span>{% endif %}
           {% if c.msg_blocked %}<span class="pill">{% icon 'slash' 12 %} blocked</span>{% endif %}

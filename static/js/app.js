@@ -125,6 +125,7 @@
     });
     return {
       on(type, fn) { (handlers[type] = handlers[type] || []).push(fn); },
+      send(data) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(data)); },
       get up() { return up; },
       start: connect,
     };
@@ -315,6 +316,34 @@
     const photo = document.getElementById("photo-input");
     const chip = document.getElementById("photo-chip");
     const draftKey = "draft:" + chat.dataset.sendUrl;
+    // Priority chats only: "Active now / Active 5 minutes ago", "typing…" and "Seen"
+    const presenceEl = document.getElementById("presence");
+    const receiptEl = document.getElementById("receipt");
+    let typingTimer = null;
+    const stopTyping = () => {
+      if (!presenceEl) return;
+      clearTimeout(typingTimer);
+      presenceEl.classList.remove("typing");
+      presenceEl.textContent = presenceEl.dataset.text || "";
+    };
+    const showPresence = (p) => {
+      if (!presenceEl || !p) return;
+      presenceEl.dataset.text = p.text || "View profile";
+      presenceEl.classList.toggle("online", !!p.now);
+      if (!presenceEl.classList.contains("typing")) presenceEl.textContent = presenceEl.dataset.text;
+    };
+    const showReceipt = (text) => {
+      if (!receiptEl || text === undefined) return;
+      receiptEl.textContent = text;
+      receiptEl.hidden = !text;
+    };
+    Live.on("typing", (d) => {
+      if (!presenceEl || String(d.conv) !== chat.dataset.conv) return;
+      presenceEl.classList.add("typing");
+      presenceEl.textContent = "typing…";
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(stopTyping, 6000);   // no news for a while: they stopped
+    });
     let lastId = parseInt(chat.dataset.lastId, 10) || 0;
     let busy = false;
 
@@ -376,10 +405,13 @@
           location.reload();
           return;
         }
+        showPresence(data.presence);
+        showReceipt(data.receipt);
         if (data.html) {
           const stick = nearBottom();
           const tmp = document.createElement("div");
           tmp.innerHTML = data.html;
+          if (tmp.querySelector(".msg.theirs")) stopTyping();   // their message arrived
           tmp.querySelectorAll("[data-id]").forEach((node) => {
             if (!list.querySelector('[data-id="' + node.dataset.id + '"]')) {
               list.appendChild(node);
@@ -409,6 +441,14 @@
     if (form) {
       try { const d = sessionStorage.getItem(draftKey); if (d) { input.value = d; sessionStorage.removeItem(draftKey); grow(); } } catch (_) {}
       input.addEventListener("input", grow);
+      let typedAt = 0;
+      if (presenceEl) input.addEventListener("input", () => {
+        const now = Date.now();
+        if (input.value.trim() && now - typedAt > 2500) {
+          typedAt = now;
+          Live.send({ t: "typing", conv: +chat.dataset.conv });
+        }
+      });
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey && !e.isComposing && window.matchMedia("(pointer: fine)").matches) {
           e.preventDefault();

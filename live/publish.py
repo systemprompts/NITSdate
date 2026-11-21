@@ -53,6 +53,11 @@ def push_conversation(conv):
             _send(user_group(user_id), {"type": "live.chat", "conv": conv.pk})
 
 
+def push_chat_to(user_id, conversation_id):
+    """Only `user_id`'s open copy of this chat needs to look again (e.g. their message was seen)."""
+    _send(user_group(user_id), {"type": "live.chat", "conv": conversation_id})
+
+
 def push_pair(a_id, b_id):
     """A block between two people changed: every chat between them, and both people's badges."""
     from chat.models import Conversation

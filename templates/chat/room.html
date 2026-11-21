@@ -19,7 +19,11 @@
       <a href="{% url 'profile' other.pk %}">{% avatar other user "md" %}</a>
       <div class="grow">
         <a href="{% url 'profile' other.pk %}"><b>{{ title }}{% if gender %}&nbsp;{% gender_mark gender %}{% endif %} {% hidden_mark name_hidden %}</b></a>
-        <small class="muted">View profile</small>
+        {% if presence %}
+          <small class="muted presence {% if presence.now %}online{% endif %}" id="presence" data-text="{{ presence.text|default:'View profile' }}" aria-live="polite">{{ presence.text|default:"View profile" }}</small>
+        {% else %}
+          <small class="muted">View profile</small>
+        {% endif %}
       </div>
     {% endif %}
     <span class="pill pill-{{ conv.tier }}">{% if conv.tier == "priority" %}{% icon 'star' 13 %}{% elif conv.tier == "inbox" %}{% icon 'inbox' 13 %}{% else %}{% icon 'zap' 13 %}{% endif %} {{ tier_label }}</span>
@@ -42,6 +46,7 @@
     <button type="button" class="btn btn-sm btn-ghost load-earlier" id="load-earlier"
             data-url="{% url 'chat_history' conv.pk %}?stage={{ conv.tier }}" data-before="{{ first_id }}" {% if not has_earlier %}hidden{% endif %}>Load earlier messages</button>
     <div class="messages" id="messages">{{ messages_html }}</div>
+    {% if presence %}<div class="msg-receipt" id="receipt" {% if not receipt %}hidden{% endif %}>{{ receipt }}</div>{% endif %}
   </div>
 
   <div class="chat-panel" id="chat-panel" data-key="{{ panel_key }}">{{ panel_html }}</div>

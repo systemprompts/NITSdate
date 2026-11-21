@@ -4,8 +4,10 @@ Server → page:  {"t": "badges", ...counts}   the nav badge numbers (same as ch
                 {"t": "chat", "conv": id}     that chat changed; an open chat page fetches what's new
                 {"t": "match", "url": ...}    a matchmaking search found someone
                 {"t": "pong"}
+                {"t": "typing", "conv": id}   the other person is typing in your Priority chat
 Page → server:  {"t": "ping", "visible": bool} every 30 s; keeps Cloudflare from closing an idle
                 socket and, while the tab is visible, keeps "last online" current.
+                {"t": "typing", "conv": id} while typing in a Priority chat (at most every few seconds)
 Close code 4401 means "you may not use the site": the page stops reconnecting.
 """
 import asyncio
@@ -26,6 +28,8 @@ NOT_ALLOWED = 4401
 BADGE_DELAY = 0.25          # one recount for a burst of signals (connecting sends several)
 SEEN_EVERY = 60             # seconds between last_seen writes, like accounts.middleware.LastSeenMiddleware
 REJOIN_EVERY = 30 * 60      # channels_redis forgets group members after a day
+TYPING_EVERY = 2            # forward at most one "typing" per chat this often
+PEER_FOR = 60               # how long a typing check (Priority chat, no block) is trusted
 
 
 def db(func):
@@ -70,7 +74,25 @@ def _note_seen(user_id):
      .update(last_seen=now))
 
 
+def _typing_peer(user_id, conv_id):
+    """Who should see `user_id` typing in this chat: the other person, if it's their active Priority
+    chat with no message block and messaging isn't turned off for them. Otherwise None."""
+    from accounts.privacy import messages_blocked
+    from chat.models import Conversation
+    from moderation.models import Restriction
+
+    conv = (Conversation.objects.filter(Q(user1_id=user_id) | Q(user2_id=user_id), pk=conv_id,
+                                        tier=Conversation.PRIORITY, is_active=True)
+            .only("id", "user1_id", "user2_id").first())
+    if conv is None or messages_blocked(conv.user1_id, conv.user2_id):
+        return None
+    if Restriction.objects.filter(user_id=user_id, no_messaging=True).exists():
+        return None
+    return conv.user2_id if conv.user1_id == user_id else conv.user1_id
+
+
 allowed_user, badge_data, note_seen = db(_allowed_user), db(_badge_data), db(_note_seen)
+typing_peer = db(_typing_peer)
 
 
 # Several tabs of one person get the same signal at the same moment; the first one counts and the
@@ -127,7 +149,12 @@ class LiveConsumer(AsyncJsonWebsocketConsumer):
             await self.receive_json(content, **kwargs)
 
     async def receive_json(self, content, **kwargs):
-        if self.user_id is None or content.get("t") != "ping":
+        if self.user_id is None:
+            return
+        if content.get("t") == "typing":
+            await self._typing(content.get("conv"))
+            return
+        if content.get("t") != "ping":
             return
         await self.send_json({"t": "pong"})
         now = time.monotonic()
@@ -137,7 +164,27 @@ class LiveConsumer(AsyncJsonWebsocketConsumer):
         if now - self.joined_at >= REJOIN_EVERY:
             await self._join()
 
+    async def _typing(self, conv_id):
+        if not isinstance(conv_id, int) or isinstance(conv_id, bool):
+            return
+        now = time.monotonic()
+        if not hasattr(self, "typing_sent"):
+            self.typing_sent, self.peers = {}, {}
+        sent = self.typing_sent
+        if now - sent.get(conv_id, 0) < TYPING_EVERY:
+            return
+        peer, checked = self.peers.get(conv_id, (None, 0))
+        if now - checked >= PEER_FOR:
+            peer = await typing_peer(self.user_id, conv_id)
+            self.peers[conv_id] = (peer, now)
+        if peer:
+            sent[conv_id] = now
+            await self.channel_layer.group_send(user_group(peer), {"type": "live.typing", "conv": conv_id})
+
     # ---- signals from live.publish -------------------------------------------------------
+
+    async def live_typing(self, event):
+        await self.send_json({"t": "typing", "conv": event["conv"]})
 
     async def live_badges(self, event):
         self._badges_soon()
