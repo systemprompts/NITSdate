@@ -165,9 +165,15 @@
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
       if (!ctx) ctx = new AC();
-      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      if (ctx.state !== "running" && ctx.state !== "closed") ctx.resume().catch(() => {});
     };
     ["pointerdown", "keydown", "touchend"].forEach((ev) => document.addEventListener(ev, unlock, { capture: true, passive: true }));
+    // Start straight away too: Chrome lets a page play sound without a new tap when you tapped or clicked
+    // on the page you came from on this site, so moving from the chat to the feed doesn't go quiet.
+    // Where that isn't allowed it simply waits for the first tap or key press here.
+    if (on() && mainnav) unlock();
+    // phones pause audio while the screen is off or another app is in front: wake it on the way back
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && ctx) unlock(); });
     const tone = (freq, at, length, type, volume) => {
       const osc = ctx.createOscillator(), gain = ctx.createGain(), t = ctx.currentTime + at;
       osc.type = type;
@@ -186,8 +192,16 @@
       notification: () => { tone(587.3, 0, 0.55, "triangle", 0.14); tone(880, 0.13, 0.6, "sine", 0.08); },
     };
     const last = {};
-    const play = (kind, force) => {
-      if ((!on() && !force) || !ctx || ctx.state !== "running") return;
+    const play = (kind, force, retried) => {
+      if ((!on() && !force) || !ctx) return;
+      if (ctx.state !== "running") {
+        // paused (or never allowed to start): try to wake it, and play only if that works straight away,
+        // so a sound never arrives late
+        if (retried || ctx.state === "closed") return;
+        ctx.resume().catch(() => {});
+        setTimeout(() => { if (ctx.state === "running") play(kind, force, true); }, 250);
+        return;
+      }
       const now = Date.now();
       if (now - (last[kind] || 0) < 1500) return;   // one event reported twice still makes one sound
       last[kind] = now;
