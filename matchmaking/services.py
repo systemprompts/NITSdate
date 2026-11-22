@@ -104,9 +104,22 @@ def compatible(a, b):
     return _accepts(a, pb) and _accepts(b, pa)
 
 
+def activity_rank(now=None):
+    """Who is matched first, as a number to sort by (then by created_at, longest-waiting first):
+    0 = on the site in the last 0-4:59 minutes, 1 = 5-9:59, 2 = 10-14:59, 3 = 15-19:59 (steps of
+    MATCH_ACTIVE_STEP_MINUTES up to MATCH_ACTIVE_MINUTES), 4 = everyone else, first come first served."""
+    now = now or timezone.now()
+    step = settings.MATCH_ACTIVE_STEP_MINUTES
+    groups = max(1, settings.MATCH_ACTIVE_MINUTES // step)
+    # the first When that fits wins, so each one only has to say "seen more recently than ..."
+    return Case(*[When(user__last_seen__gt=now - timedelta(minutes=step * (i + 1)), then=Value(i))
+                  for i in range(groups)],
+                default=Value(groups), output_field=IntegerField())
+
+
 def try_match(session):
-    """Try to pair `session` with a compatible searcher: first those who've been on the site in the
-    last MATCH_ACTIVE_MINUTES, longest-waiting first; then everyone else, longest-waiting first.
+    """Try to pair `session` with a compatible searcher, in activity_rank order: the people seen on the
+    site most recently first (in 5-minute groups), and within a group whoever started searching first.
 
     A search only joins in once it's MATCH_REVEAL_SECONDS old, so the "matching" screen always
     shows for a moment, even when someone fits straight away."""
@@ -123,13 +136,11 @@ def try_match(session):
         MatchSession.objects.filter(pk=session.pk).update(status=MatchSession.CANCELLED, ended_at=timezone.now())
         session.refresh_from_db()
         return session
-    around = now - timedelta(minutes=settings.MATCH_ACTIVE_MINUTES)
     candidates = (MatchSession.objects.active().filter(created_at__lte=settled).exclude(user_id__in=excluded)
                   .filter(reach_q(session.user, reach_of(session)))
                   .exclude(user__restriction__no_matchmaking=True)
-                  .annotate(away=Case(When(user__last_seen__gte=around, then=Value(0)), default=Value(1),
-                                      output_field=IntegerField()))
-                  .select_related("user__profile").order_by("away", "created_at")[:500])
+                  .annotate(activity=activity_rank(now))
+                  .select_related("user__profile").order_by("activity", "created_at", "id")[:500])
     for cand in candidates:
         if not compatible(session, cand):
             continue

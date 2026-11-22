@@ -531,6 +531,11 @@ h1 .gender { font-size: .55em; vertical-align: .2em; }
 .steps { padding-left: 1.2rem; margin: 0; display: grid; gap: .55rem; }
 .searching { text-align: center; padding: 2rem 1.5rem; }
 .searching .btn { margin-top: .4rem; }
+.search-clock { margin: .2rem 0 .6rem; color: var(--muted); }
+.search-clock b { display: block; font-family: var(--hand); font-size: 2.2rem; font-weight: 700; color: var(--pen);
+  font-variant-numeric: tabular-nums; line-height: 1.1; }
+.fast-queue { margin: 0 auto 1rem; max-width: 420px; }
+.fast-queue small { display: block; margin-top: .35rem; }
 .filter-summary { list-style: none; padding: 0; margin: 1.2rem auto; max-width: 420px; text-align: left; }
 .filter-summary li { display: flex; gap: .8rem; padding: .45rem 0 .38rem; border-bottom: 1.5px solid var(--rule); }
 .filter-summary li:last-child { border-bottom: 0; }

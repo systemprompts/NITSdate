@@ -587,19 +587,19 @@
   /* ---- matchmaking: wait for a match ---- */
   const searching = document.getElementById("searching");
   if (searching) {
-    const expires = new Date(searching.dataset.expires);
-    const label = document.getElementById("expires-in");
-    let expiredChecked = false;
+    // a count-up timer from when the search started (Fast queue keeps that time). It counts from the
+    // server's figure at page load, so a phone with a wrong clock still shows the right time.
+    const clock = document.getElementById("search-elapsed");
+    const fast = document.getElementById("fast-queue");
+    const loaded = Date.now();
+    const base = clock ? +clock.dataset.elapsed || 0 : 0;
+    const fastWait = fast ? +fast.dataset.wait || 0 : 0;
+    const pad = (n) => String(n).padStart(2, "0");
     const tick = () => {
-      const ms = expires - new Date();
-      if (ms <= 0) {
-        // the phone's clock may be ahead of the server: ask the server instead of reload-looping
-        label.textContent = "about to expire";
-        if (!expiredChecked) { expiredChecked = true; check(); }
-        return;
-      }
-      const h = Math.floor(ms / 3.6e6), m = Math.floor((ms % 3.6e6) / 6e4);
-      label.textContent = "expires in " + (h ? h + "h " : "") + m + "m";
+      const passed = Math.max(0, Math.floor((Date.now() - loaded) / 1000));
+      const t = base + passed, h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+      if (clock) clock.textContent = h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+      if (fast && fast.hidden && passed >= fastWait) fast.hidden = false;   // Fast queue opens after 5 minutes
     };
     const check = async () => {
       if (document.hidden) return;
@@ -617,7 +617,7 @@
     // comes right after that. With one, the match arrives as a push (handled below).
     every(check, 4000, { first: +searching.dataset.firstCheck || 4000 });
     tick();
-    setInterval(tick, 30000);
+    setInterval(tick, 1000);
   }
 
   /* ---- a matchmaking search found someone: go there from the match page, or say so elsewhere ---- */

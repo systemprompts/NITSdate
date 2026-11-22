@@ -28,7 +28,7 @@ class Matcher:
         """One round. A new pair can only appear when a search becomes matchable (it's
         MATCH_REVEAL_SECONDS old), so normally only those are tried. Returns how many pairs it made."""
         from matchmaking.models import MatchSession
-        from matchmaking.services import expire_stale, try_match
+        from matchmaking.services import activity_rank, expire_stale, try_match
 
         expire_stale()
         settled = timezone.now() - timedelta(seconds=settings.MATCH_REVEAL_SECONDS)
@@ -39,7 +39,8 @@ class Matcher:
             searches = searches.filter(created_at__gt=self.tried_until)
         self.tried_until = settled
         paired = set()   # people matched in this round; their other row needn't be tried
-        for search in searches.order_by("created_at")[:PER_ROUND]:
+        # the same order a search picks its partner in: most recently active first, then longest waiting
+        for search in searches.annotate(activity=activity_rank()).order_by("activity", "created_at", "id")[:PER_ROUND]:
             if search.user_id in paired:
                 continue
             result = try_match(search)

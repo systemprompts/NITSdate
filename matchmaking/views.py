@@ -41,6 +41,24 @@ def _current(user):
     return MatchSession.objects.active().filter(user=user).first()
 
 
+def _clock(seconds):
+    """A count-up timer: 0:07, 4:59, 1:02:03."""
+    h, rest = divmod(max(0, int(seconds)), 3600)
+    m, s = divmod(rest, 60)
+    return f"{h}:{m:02}:{s:02}" if h else f"{m}:{s:02}"
+
+
+def _fast_queue_wait(current, profile):
+    """Seconds until this search may switch to Fast queue (0 = now), or None when there's no point:
+    it already has, or every filter is already open, so there's nothing to turn off."""
+    lo, hi = age_bounds(profile)
+    if current.fast_queued_at or not (current.genders or current.looking_for or current.personality
+                                      or current.years or current.min_age > lo or current.max_age < hi):
+        return None
+    opens = current.created_at + timedelta(minutes=settings.MATCH_FAST_QUEUE_MINUTES)
+    return max(0, int((opens - timezone.now()).total_seconds() + 0.999))
+
+
 def _first_check_ms(current):
     """When the searching page should first ask for news: right after a new search becomes matchable,
     otherwise on the normal 4-second beat."""
@@ -71,8 +89,13 @@ def match_home(request):
     selected = {key: (last.values(key) if last else []) for key, *_ in FILTERS}
     from_profile = {"looking_for": me.profile.looking_for}
     history = MatchSession.objects.filter(user=me).exclude(status=MatchSession.SEARCHING)[:6]
+    elapsed = int((timezone.now() - current.created_at).total_seconds()) if current else 0
     return render(request, "matchmaking/match.html", {
         "current": current,
+        "elapsed": elapsed,
+        "elapsed_text": _clock(elapsed),
+        "fast_wait": _fast_queue_wait(current, me.profile) if current else None,
+        "fast_after": settings.MATCH_FAST_QUEUE_MINUTES,
         "filters": [{"key": k, "label": label, "choices": choices, "help": help_text, "selected": selected[k],
                      "on": bool(selected[k]), "from_profile": from_profile.get(k, "")}
                     for k, label, choices, help_text in FILTERS],
@@ -160,6 +183,34 @@ def cancel(request):
         current.save(update_fields=["status", "ended_at"])
         push_badges(request.user.pk)
         messages.info(request, "Matchmaking cancelled.")
+    return redirect("match")
+
+
+@login_required
+@require_POST
+def fast_queue(request):
+    """Turn off every filter on the open search so more people fit. It keeps its start time, so it
+    keeps its place in line (and the timer keeps counting)."""
+    me = request.user
+    current = _current(me)
+    if current is None:
+        return redirect("match")
+    wait = _fast_queue_wait(current, me.profile)
+    if wait is None:
+        return redirect("match")
+    if wait > 0:
+        messages.error(request, f"Fast queue opens after {settings.MATCH_FAST_QUEUE_MINUTES} minutes of searching.")
+        return redirect("match")
+    lo, hi = age_bounds(me.profile)   # the widest range their age group allows (under-18s stay with under-18s)
+    MatchSession.objects.filter(pk=current.pk, status=MatchSession.SEARCHING).update(
+        genders="", looking_for="", personality="", years="", min_age=lo, max_age=hi,
+        fast_queued_at=timezone.now())
+    current = try_match(current)
+    if current.status == MatchSession.MATCHED and current.conversation_id:
+        request.session.pop(PENDING, None)
+        messages.success(request, "It's a match! Say hi 👋")
+        return redirect("chat_room", pk=current.conversation_id)
+    messages.success(request, "Fast queue is on: your filters are off, and you keep your place in line.")
     return redirect("match")
 
 

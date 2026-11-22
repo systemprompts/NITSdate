@@ -29,8 +29,10 @@ class MatchSession(models.Model):
     personality = models.CharField(max_length=100, blank=True, help_text="Comma separated; empty = any")
     years = models.CharField(max_length=100, blank=True, help_text="Comma separated; empty = any")
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)   # place in line; Fast queue keeps it
     expires_at = models.DateTimeField()
+    # when they switched to Fast queue (all filters off, same place in line), if they did
+    fast_queued_at = models.DateTimeField(null=True, blank=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     matched_with = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                      related_name="+")
