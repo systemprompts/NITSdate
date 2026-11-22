@@ -1,8 +1,8 @@
 """How recently the other person was on nitsdate, shown in active chats without a message block.
 The closer the chat, the finer it gets:
 
-  Priority     to the minute  "Active now", "Active 5 minutes ago"
-  Inbox        to the hour    "Active in the last hour", "Active 3 hours ago", "Active 2 days ago"
+  Priority     to the minute  "Active now" (last 2 minutes), "Active 5 minutes ago"
+  Inbox        to the hour    "Active now" (last hour), "Active 3 hours ago", "Active 2 days ago"
   Matchmaking  to the day     "Active today", "Active yesterday", "Active 4 days ago"
 
 Priority chats also get "typing…" (sent over the live socket, see live/consumers.py) and "Seen" under
@@ -43,7 +43,7 @@ def _days(days):
 
 
 def presence(user, tier, now=None):
-    """{"now": bool, "text": "..."} for a chat of this tier; "now" (the green dot) is Priority only.
+    """{"now": bool, "text": "..."} for a chat of this tier; "now" (the green dot) goes with "Active now".
     The text is "" when they haven't been seen since this started being recorded."""
     seen = user.last_seen
     if seen is None:
@@ -56,9 +56,9 @@ def presence(user, tier, now=None):
         return {"now": False, "text": f"Active {timesince(seen, now, depth=1)} ago"}
     if tier == Conversation.INBOX:
         hours = int(ago.total_seconds() // 3600)
-        if hours < 1:
-            text = "Active in the last hour"
-        elif hours < 24:
+        if hours < 1:                       # 0 to 59:59 minutes
+            return {"now": True, "text": "Active now"}
+        if hours < 24:
             text = f"Active {_plural(hours, 'hour')} ago"
         else:
             text = _days(hours // 24)

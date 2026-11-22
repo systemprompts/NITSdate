@@ -39,7 +39,7 @@ class PriorityPresenceTests(TestCase):
     def text(self, tier, now, ago=None, at=None):
         self.b.last_seen = at if at is not None else now - ago
         p = presence(self.b, tier, now)
-        self.assertFalse(p["now"])          # the green "online" dot is Priority only
+        self.assertEqual(p["now"], p["text"] == "Active now")   # the green dot goes with "Active now"
         return p["text"]
 
     def test_inbox_is_to_the_hour(self):
@@ -47,8 +47,8 @@ class PriorityPresenceTests(TestCase):
         self.b.last_seen = None
         self.assertEqual(presence(self.b, "inbox", now)["text"], "")
         for ago, expected in [
-            (timedelta(seconds=20), "Active in the last hour"),
-            (timedelta(minutes=59, seconds=59), "Active in the last hour"),
+            (timedelta(seconds=20), "Active now"),
+            (timedelta(minutes=59, seconds=59), "Active now"),
             (timedelta(hours=1), "Active 1 hour ago"),
             (timedelta(hours=5, minutes=50), "Active 5 hours ago"),
             (timedelta(hours=23, minutes=59), "Active 23 hours ago"),
@@ -96,10 +96,12 @@ class PriorityPresenceTests(TestCase):
         self.assertContains(room, 'data-receipts="0"')
         self.assertNotContains(room, 'id="receipt"')
         self.assertContains(self.client.get(reverse("inbox") + "?tab=inbox"), "Active 2 hours ago")
-        self.seen(self.b, timedelta(seconds=30))
+        self.seen(self.b, timedelta(minutes=45))     # anything under an hour is "Active now"
         data = self.client.get(reverse("chat_poll", args=[self.conv.pk])).json()
-        self.assertEqual(data["presence"], {"now": False, "text": "Active in the last hour"})
+        self.assertEqual(data["presence"], {"now": True, "text": "Active now"})
         self.assertNotIn("receipt", data)
+        self.assertContains(self.client.get(reverse("chat_room", args=[self.conv.pk])), "presence online")
+        self.assertContains(self.client.get(reverse("inbox") + "?tab=inbox"), "Active now")
 
     def test_matchmaking_chats_show_the_day(self):
         self.seen(self.b, timedelta(seconds=30))
