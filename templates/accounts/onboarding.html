@@ -38,7 +38,7 @@
       {% if dob_kept %}
       <small class="muted">Kept from your earlier nitsdate account, so it can't be changed here. Only a moderator can correct it.</small>
       {% else %}
-      <small class="muted">Your exact date of birth. Others only see your age (with its own privacy setting).
+      <small class="muted">Your exact date of birth. Others only see your age and zodiac sign (with their own privacy setting), never the date.
         Under-18s are matched and connected only with other under-18s. You can't change this later, so check it.</small>
       {% endif %}
       {% if form.birth_date.errors %}<em class="error">{{ form.birth_date.errors|join:" " }}</em>{% endif %}

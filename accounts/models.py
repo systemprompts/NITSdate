@@ -155,6 +155,12 @@ class Profile(models.Model):
             self.birth_date = today.replace(year=today.year - years, day=28)
 
     @property
+    def zodiac(self):
+        """Their (Western) star sign, e.g. "♌ Leo". Shown next to the age, under the age's privacy
+        setting, instead of the date of birth, which only moderators ever see."""
+        return zodiac_sign(self.birth_date) if self.birth_date else ""
+
+    @property
     def is_minor(self):
         return self.age is not None and self.age < settings.ADULT_AGE
 
@@ -189,9 +195,25 @@ class Profile(models.Model):
             return [labels.get(v, v) for v in value]
         if field.kind == "image":
             return bool(value)
-        if field.kind in ("int", "birth"):
+        if field.kind == "birth":
+            return "" if value is None else f"{value} · {self.zodiac}"
+        if field.kind == "int":
             return "" if value is None else str(value)
         return value or ""
+
+
+# the first day of each sign, in calendar order; the year starts in Capricorn (22 December to 19 January)
+ZODIAC = [((1, 20), "♒ Aquarius"), ((2, 19), "♓ Pisces"), ((3, 21), "♈ Aries"), ((4, 20), "♉ Taurus"),
+          ((5, 21), "♊ Gemini"), ((6, 21), "♋ Cancer"), ((7, 23), "♌ Leo"), ((8, 23), "♍ Virgo"),
+          ((9, 23), "♎ Libra"), ((10, 23), "♏ Scorpio"), ((11, 22), "♐ Sagittarius"), ((12, 22), "♑ Capricorn")]
+
+
+def zodiac_sign(born):
+    sign = "♑ Capricorn"
+    for start, name in ZODIAC:
+        if (born.month, born.day) >= start:
+            sign = name
+    return sign
 
 
 def pair_ids(a, b):

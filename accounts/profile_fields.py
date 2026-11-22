@@ -79,7 +79,8 @@ FIELDS = [
     ProfileField("photo", "Profile photo", "image", section="basics"),
     ProfileField("gender", "Gender", "choice", tuple(GENDER_CHOICES), required=True, section="basics"),
     ProfileField("age", "Age", "birth", required=True, section="basics",
-                 help="Worked out from your date of birth. Only moderators can correct the date."),
+                 help="Worked out from your date of birth, shown with your zodiac sign (never the date itself). "
+                      "Only moderators can correct the date."),
     ProfileField("likes", "I like", "multi", tuple(GENDER_CHOICES), required=True, section="basics",
                  default_privacy=ONLY_ME, help="Used for matchmaking even when hidden."),
     ProfileField("year", "Currently studying", "choice", tuple(YEAR_CHOICES)),
