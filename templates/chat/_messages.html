@@ -19,14 +19,14 @@ data-reply / data-edit / data-delete / data-report say what the ⋯ menu (and sw
         {% if m.reply_to_id %}{% with r=m.reply_to %}
         <button type="button" class="msg-quote" data-jump="{{ m.reply_to_id }}" aria-label="Go to the message this replies to">
           <b>{% if r.sender_id == me.pk %}{% if m.sender_id == me.pk %}You replied to yourself{% else %}{{ other_name }} replied to you{% endif %}{% else %}{% if m.sender_id == me.pk %}You replied to {{ other_name }}{% else %}{{ other_name }} replied to themselves{% endif %}{% endif %}</b>
-          <span>{% if r.removed %}Removed by a moderator{% elif r.is_deleted %}Message deleted{% elif r.text %}{{ r.text|truncatechars:90 }}{% elif r.image %}📷 Photo{% endif %}</span>
+          <span>{% if r.removed %}Removed by a moderator{% elif r.is_deleted %}Message deleted{% elif r.text %}{{ r.text|truncatechars:90 }}{% elif r.image %}{% if r.is_gif %}GIF{% else %}📷 Photo{% endif %}{% endif %}</span>
         </button>
         {% endwith %}{% endif %}
         <div class="bubble">
           {% if m.removed %}<p class="removed">This message was removed by a moderator.</p>
           {% elif m.is_deleted %}<p class="removed">{% icon 'trash' 13 %} Message deleted</p>
           {% else %}
-          {% if m.image %}<a href="{% url 'chat_photo' m.pk %}" target="_blank" class="msg-photo"><img src="{% url 'chat_photo' m.pk %}" alt="Photo" loading="lazy"></a>{% endif %}
+          {% if m.image %}<a href="{% url 'chat_photo' m.pk %}" target="_blank" class="msg-photo"{% if m.is_gif %} data-gif{% endif %}><img src="{% url 'chat_photo' m.pk %}" alt="{% if m.is_gif %}GIF{% else %}Photo{% endif %}" loading="lazy"></a>{% endif %}
           {% if m.text %}<p>{{ m.text|urlize|linebreaksbr }}</p>{% endif %}{% endif %}
           <time datetime="{{ m.created_at|date:'c' }}">{% if m.edited_at and not m.hidden %}<span class="edited">Edited</span> · {% endif %}{{ m.created_at|date:"M j, H:i" }}</time>
         </div>

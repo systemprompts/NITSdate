@@ -236,3 +236,106 @@ class MessageActionTests(TestCase):
         mine.refresh_from_db()
         self.assertTrue(mine.removed)
         self.assertEqual((mine.text, mine.edits.count()), ("", 0))     # a moderator's removal wipes it
+
+
+def gif_bytes(frames=3, size=(40, 30), comment=b"", xmp=b"", junk=b""):
+    """A small animated GIF, optionally with a comment, an XMP block and data hidden after the end."""
+    from io import BytesIO
+
+    from PIL import Image, ImageDraw
+    images = []
+    for i in range(frames):   # a square moving across, so no two frames are alike
+        im = Image.new("RGB", size, (250, 250, 250))
+        ImageDraw.Draw(im).rectangle([i % size[0], 0, i % size[0] + 1, 1], fill=(200, 40, 90))
+        images.append(im)
+    buf = BytesIO()
+    images[0].save(buf, "GIF", save_all=frames > 1, append_images=images[1:], duration=80, loop=0,
+                   **({"comment": comment} if comment else {}))
+    data = buf.getvalue()
+    if xmp:   # an application extension "XMP DataXMP" right after the header, like photo tools write
+        block = b"\x21\xff\x0bXMP DataXMP" + bytes([len(xmp)]) + xmp + b"\x00"
+        start = 13 + 3 * (2 << (data[10] & 7)) if data[10] & 0x80 else 13
+        data = data[:start] + block + data[start:]
+    return data + junk
+
+
+class GifTests(TestCase):
+    """GIFs in chats stay animated; everything that isn't needed to play them is dropped."""
+
+    def setUp(self):
+        self.a = make_user("Asha Rao", gender="female", likes="male")
+        self.b = make_user("Bilal Khan", gender="male", likes="female")
+        u1, u2 = pair_ids(self.a, self.b)
+        self.conv = Conversation.objects.create(user1_id=u1, user2_id=u2, tier=Conversation.INBOX,
+                                                origin=Conversation.ORIGIN_CONNECTION)
+        self.client.force_login(self.a)
+
+    def upload(self, data, name="tenor.gif", kind="image/gif"):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        return SimpleUploadedFile(name, data, content_type=kind)
+
+    def test_cleaning_keeps_the_frames_and_drops_the_rest(self):
+        from io import BytesIO
+
+        from PIL import Image
+
+        from accounts.images import clean_gif
+        dirty = gif_bytes(4, comment=b"taken at home, 12 Main St", xmp=b"<x:xmpmeta>GPS 24.8N</x:xmpmeta>",
+                          junk=b"PK\x03\x04hidden zip")
+        clean = clean_gif(dirty)
+        for secret in (b"Main St", b"xmpmeta", b"hidden zip"):
+            self.assertIn(secret, dirty)
+            self.assertNotIn(secret, clean)
+        self.assertIn(b"NETSCAPE2.0", clean)                      # it still loops
+        self.assertTrue(clean.endswith(b"\x3b"))
+        img = Image.open(BytesIO(clean))
+        self.assertEqual((img.n_frames, img.info.get("duration")), (4, 80))
+        self.assertIsNone(clean_gif(gif_bytes(1)))                 # one frame: just a picture
+
+    def test_broken_or_oversized_gifs_are_refused(self):
+        from django.core.exceptions import ValidationError
+
+        from accounts.images import GIF_MAX_FRAMES, clean_gif
+        good = gif_bytes(3)
+        for bad in (good[:-12], good[:20], b"GIF89a" + b"\x00" * 7, good[:-1] + b"\x99"):
+            with self.assertRaises(ValidationError):
+                clean_gif(bad)
+        with self.assertRaises(ValidationError):
+            clean_gif(gif_bytes(3, size=(1200, 10)))
+        with self.assertRaises(ValidationError):
+            clean_gif(gif_bytes(GIF_MAX_FRAMES + 1, size=(2, 2)))
+
+    def test_a_gif_in_a_chat_stays_animated(self):
+        with self.settings(MEDIA_ROOT="/tmp/nitsdate-test-media"):
+            res = self.client.post(reverse("chat_send", args=[self.conv.pk]),
+                                   {"image": self.upload(gif_bytes(3, comment=b"secret"))}, HTTP_X_REQUESTED_WITH="fetch")
+            self.assertEqual(res.json(), {"ok": True})
+            msg = Message.objects.get()
+            self.assertTrue(msg.is_gif)
+            served = self.client.get(reverse("chat_photo", args=[msg.pk]))
+            self.assertEqual(served["Content-Type"], "image/gif")
+            body = b"".join(served.streaming_content)
+            self.assertTrue(body.startswith(b"GIF89a"))
+            self.assertNotIn(b"secret", body)
+            other = self.client_class()
+            other.force_login(self.b)
+            self.assertIn(">GIF<", other.get(reverse("inbox") + "?tab=inbox").content.decode().replace("\n", "").replace(" ", ""))
+            # a reply to it says GIF
+            other.post(reverse("chat_send", args=[self.conv.pk]), {"text": "haha", "reply_to": msg.pk},
+                       HTTP_X_REQUESTED_WITH="fetch")
+            self.assertIn("<span>GIF</span>", other.get(reverse("chat_room", args=[self.conv.pk])).content.decode())
+
+    def test_pasted_screenshots_and_post_gifs_are_still_jpegs(self):
+        from io import BytesIO
+
+        from PIL import Image
+        png = BytesIO()
+        Image.new("RGBA", (30, 20), (255, 0, 0, 128)).save(png, "PNG")
+        with self.settings(MEDIA_ROOT="/tmp/nitsdate-test-media"):
+            self.client.post(reverse("chat_send", args=[self.conv.pk]),
+                             {"image": self.upload(png.getvalue(), "image.png", "image/png")}, HTTP_X_REQUESTED_WITH="fetch")
+            still = Message.objects.get()
+            self.assertTrue(still.image.name.endswith(".jpg"))
+            self.assertFalse(still.is_gif)
+            from accounts.images import process_image
+            self.assertTrue(process_image(self.upload(gif_bytes(3))).name.endswith(".jpg"))   # posts, profiles

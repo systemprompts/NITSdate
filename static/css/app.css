@@ -638,6 +638,7 @@ h1 .gender { font-size: .55em; vertical-align: .2em; }
 .composer-context span:not(.icon-wrap) { color: var(--muted); }
 .composer-context button { border: 0; background: none; color: var(--muted); cursor: pointer; display: grid; padding: .2rem; }
 .photo-chip { display: inline-flex; align-items: center; gap: .4rem; font-size: .88rem; padding: .2rem .4rem .15rem .7rem; margin-bottom: .35rem; background: var(--paper-2); border-radius: 6px; max-width: 100%; }
+.photo-chip img { width: 38px; height: 38px; object-fit: cover; border-radius: 4px; flex: none; }
 .photo-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .photo-chip button { border: 0; background: none; color: var(--muted); cursor: pointer; display: grid; }
 

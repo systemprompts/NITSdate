@@ -303,7 +303,7 @@ def send(request, pk):
     image = None
     if upload:
         try:
-            image = process_image(upload)
+            image = process_image(upload, allow_gif=True)   # animated GIFs stay animated
         except ValidationError as exc:
             return fail(exc.messages[0])
     reply_to = None

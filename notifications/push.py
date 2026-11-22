@@ -91,7 +91,8 @@ def _message_job(message_id):
     name = conv.nickname_for(msg.sender) if conv.is_match else display_name(msg.sender, reader)
     _send_to(to_id, {
         "title": name,
-        "body": "Sent you a photo" if msg.image and not msg.text else "Sent you a message",
+        "body": ("Sent you a GIF" if msg.is_gif else "Sent you a photo") if msg.image and not msg.text
+                else "Sent you a message",
         "url": f"/messages/{conv.pk}/", "tag": f"chat-{conv.pk}", "quiet_if": "page",
     })
 

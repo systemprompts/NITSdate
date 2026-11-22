@@ -110,6 +110,11 @@ class Message(models.Model):
         return self.sender_id is None
 
     @property
+    def is_gif(self):
+        """An animated GIF (they're kept as GIFs; every other picture is stored as a JPEG)."""
+        return bool(self.image) and self.image.name.lower().endswith(".gif")
+
+    @property
     def is_deleted(self):
         return self.deleted_at is not None
 

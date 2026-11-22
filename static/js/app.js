@@ -540,6 +540,40 @@
     const photo = document.getElementById("photo-input");
     const chip = document.getElementById("photo-chip");
     const draftKey = "draft:" + chat.dataset.sendUrl;
+    // the picture waiting to be sent: chosen, pasted, dropped, or put in by the keyboard (GIFs, stickers)
+    let pastedFile = null, thumbUrl = null;
+    const chosenPhoto = () => (photo && photo.files[0]) || pastedFile;
+    const showPhoto = () => {
+      if (!chip) return;
+      const f = chosenPhoto(), thumb = document.getElementById("photo-thumb");
+      chip.hidden = !f;
+      if (thumbUrl) { URL.revokeObjectURL(thumbUrl); thumbUrl = null; }
+      thumb.hidden = !f;
+      if (f) thumb.src = thumbUrl = URL.createObjectURL(f); else thumb.removeAttribute("src");
+      const plainName = !f || !f.name || /^image\.\w+$/i.test(f.name);   // pasted pictures are all "image.png"
+      document.getElementById("photo-name").textContent = !f ? "" : f.type === "image/gif" ? "GIF" : plainName ? "Photo" : f.name;
+    };
+    const clearPhoto = () => { if (photo) photo.value = ""; pastedFile = null; showPhoto(); };
+    const attachPhoto = (file) => {
+      try {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        photo.files = dt.files;
+        pastedFile = null;
+      } catch (_) {          // a browser that can't fill the file input: it's sent alongside instead
+        photo.value = "";
+        pastedFile = file;
+      }
+      showPhoto();
+    };
+    const imageIn = (dt) => {   // the picture in a paste, drop or keyboard insert, if there's one and no text
+      if (!dt || (dt.getData && (dt.getData("text/plain") || "").trim())) return null;
+      const files = [...(dt.files || [])];
+      if (!files.length && dt.items) {
+        for (const item of dt.items) if (item.kind === "file") { const f = item.getAsFile(); if (f) files.push(f); }
+      }
+      return files.find((f) => /^image\//.test(f.type)) || null;
+    };
     // Priority chats only: "Active now / Active 5 minutes ago", "typing…" and "Seen"
     const presenceEl = document.getElementById("presence");
     const presenceLive = document.getElementById("presence-live");
@@ -746,7 +780,8 @@
       if (mode && mode.kind === "edit") input.value = savedDraft;   // switching away from an edit
       mode = { kind, id: msg.dataset.id };
       const text = msg.querySelector(".bubble p:not(.removed)");
-      const snippet = text ? text.textContent.trim() : (msg.querySelector(".msg-photo") ? "📷 Photo" : "");
+      const pic = msg.querySelector(".msg-photo");
+      const snippet = text ? text.textContent.trim() : (pic ? (pic.hasAttribute("data-gif") ? "GIF" : "📷 Photo") : "");
       document.getElementById("context-icon").innerHTML = document.getElementById("tpl-" + kind).innerHTML;
       document.getElementById("context-title").textContent = kind === "edit" ? "Editing your message"
         : "Replying to " + (msg.classList.contains("mine") ? "yourself" : chat.dataset.otherName);
@@ -757,8 +792,7 @@
       if (kind === "edit") {
         savedDraft = input.value;
         input.value = msg.dataset.text || "";
-        photo.value = "";
-        chip.hidden = true;
+        clearPhoto();
       }
       grow();
       input.focus();
@@ -861,20 +895,35 @@
           form.requestSubmit();
         }
       });
-      photo.addEventListener("change", () => {
-        chip.hidden = !photo.files.length;
-        document.getElementById("photo-name").textContent = photo.files[0] ? "📷 " + photo.files[0].name : "";
+      photo.addEventListener("change", () => { pastedFile = null; showPhoto(); });
+      document.getElementById("photo-clear").addEventListener("click", () => { clearPhoto(); input.focus(); });
+      const take = (e, dt) => {
+        if (mode && mode.kind === "edit") return;   // an edit changes the text only
+        const file = imageIn(dt);
+        if (!file) return;
+        e.preventDefault();
+        attachPhoto(file);
+        input.focus();
+      };
+      // paste a picture: a screenshot, a copied image, or a GIF the keyboard copied
+      input.addEventListener("paste", (e) => take(e, e.clipboardData));
+      // keyboards that put GIFs and stickers straight into the message box
+      input.addEventListener("beforeinput", (e) => { if (e.dataTransfer) take(e, e.dataTransfer); });
+      // or drag one onto the chat
+      chat.addEventListener("dragover", (e) => {
+        if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) e.preventDefault();
       });
-      document.getElementById("photo-clear").addEventListener("click", () => { photo.value = ""; chip.hidden = true; });
+      chat.addEventListener("drop", (e) => take(e, e.dataTransfer));
 
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         const editing = mode && mode.kind === "edit" ? mode.id : null;
-        if (!input.value.trim() && (editing || !photo.files.length)) return;
+        if (!input.value.trim() && (editing || !chosenPhoto())) return;
         const btn = form.querySelector(".send-btn");
         btn.disabled = true;
         try {
           let body = new FormData(form), url = chat.dataset.sendUrl;
+          if (!editing && pastedFile) body.set("image", pastedFile, pastedFile.name || "pasted.png");
           if (editing) {
             body = new FormData();
             body.append("text", input.value);
@@ -888,8 +937,7 @@
           }
           if (!editing) input.value = "";
           clearContext();   // after an edit this brings back what you were typing before
-          photo.value = "";
-          chip.hidden = true;
+          clearPhoto();
           grow();
           await poll();
           if (!editing) toBottom();
