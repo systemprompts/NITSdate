@@ -6,7 +6,8 @@
 <div class="chat tier-{{ conv.tier }}" id="chat" data-conv="{{ conv.pk }}"
      data-poll-url="{% url 'chat_poll' conv.pk %}" data-send-url="{% url 'chat_send' conv.pk %}"
      data-last-id="{{ last_id }}" data-tier="{{ conv.tier }}" data-active="{{ conv.is_active|yesno:'1,0' }}"
-     data-blocked="{{ msg_blocked|yesno:'1,0' }}">
+     data-blocked="{{ msg_blocked|yesno:'1,0' }}" data-cursor="{{ changes_cursor }}" data-other-name="{{ title }}"
+     data-edit-url="{% url 'chat_msg_edit' 0 %}" data-delete-url="{% url 'chat_msg_delete' 0 %}">
   <header class="chat-head">
     <a href="{% url 'inbox' %}?tab={{ conv.tier }}" class="icon-btn" aria-label="Back">{% icon 'back' %}</a>
     {% if conv.is_match %}
@@ -76,11 +77,25 @@
       <input type="file" name="image" accept="image/*" hidden id="photo-input">
     </label>
     <div class="composer-main">
+      <div class="composer-context" id="composer-context" hidden>
+        <span class="icon-wrap" id="context-icon"></span>
+        <div class="grow"><b id="context-title"></b><span id="context-text"></span></div>
+        <button type="button" id="context-clear" aria-label="Cancel">{% icon 'x' 14 %}</button>
+      </div>
+      <input type="hidden" name="reply_to" id="reply-to" value="">
       <div class="photo-chip" id="photo-chip" hidden><span id="photo-name"></span><button type="button" id="photo-clear" aria-label="Remove photo">{% icon 'x' 13 %}</button></div>
       <textarea name="text" id="msg-input" rows="1" maxlength="2000" placeholder="Message" aria-label="Message" autocomplete="off"></textarea>
     </div>
     <button class="send-btn" aria-label="Send">{% icon 'send' %}</button>
   </form>
   {% endif %}
+  <div class="msg-menu" id="msg-menu" role="menu" hidden>
+    <button type="button" role="menuitem" data-act="reply">{% icon 'reply' 15 %} Reply</button>
+    <button type="button" role="menuitem" data-act="edit">{% icon 'edit' 15 %} Edit</button>
+    <button type="button" role="menuitem" data-act="delete" class="danger">{% icon 'trash' 15 %} Delete</button>
+    <a role="menuitem" data-act="report">{% icon 'flag' 15 %} Report</a>
+  </div>
+  <template id="tpl-reply">{% icon 'reply' 15 %}</template>
+  <template id="tpl-edit">{% icon 'edit' 15 %}</template>
 </div>
 {% endblock %}

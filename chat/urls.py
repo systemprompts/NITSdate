@@ -14,4 +14,6 @@ urlpatterns = [
     path("<int:pk>/priority/<int:req_id>/<str:action>/", views.priority_action, name="chat_priority_action"),
     path("<int:pk>/leave/", views.leave, name="chat_leave"),
     path("photo/<int:msg_id>/", views.photo, name="chat_photo"),
+    path("msg/<int:msg_id>/edit/", views.edit_message, name="chat_msg_edit"),
+    path("msg/<int:msg_id>/delete/", views.delete_message, name="chat_msg_delete"),
 ]

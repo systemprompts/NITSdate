@@ -27,7 +27,7 @@
         <div class="convo-preview">
           {% if not c.is_active %}<span class="pill">ended</span>{% endif %}
           {% if c.msg_blocked %}<span class="pill">{% icon 'slash' 12 %} blocked</span>{% endif %}
-          {% if c.last_sender == user.pk %}You: {% endif %}{% if c.last_text %}{{ c.last_text|truncatechars:70 }}{% elif c.last_image %}📷 Photo{% endif %}
+          {% if c.last_sender == user.pk %}You: {% endif %}{% if c.last_removed %}Removed by a moderator{% elif c.last_deleted %}Message deleted{% elif c.last_text %}{{ c.last_text|truncatechars:70 }}{% elif c.last_image %}📷 Photo{% endif %}
         </div>
       </div>
       {% if c.unread %}<b class="badge">{{ c.unread }}</b>{% endif %}

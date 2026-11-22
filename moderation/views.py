@@ -19,10 +19,10 @@ from accounts.images import serve_image
 from accounts.models import Block, Connection, GalleryPhoto, User
 from accounts.privacy import BLOCKED, SELF, display_name, field_visible, get_profile, profile_rows, relation
 from accounts.profile_fields import PRIVACY_LABELS
-from chat.models import Conversation, Message
+from chat.models import Conversation, Message, MessageEdit
 from feed.models import Comment, Post
 from feed.visibility import check_visible
-from live.publish import push_mods
+from live.publish import push_conversation, push_mods
 from matchmaking.models import MatchSession
 
 from accounts.adapters import email_allowed, may_sign_in
@@ -126,12 +126,32 @@ def report_message(request, pk):
     if not conv.has_member(request.user):
         raise Http404
     sender = msg.sender
-    snippet = msg.text or ""
-    if msg.image:
-        snippet = (snippet + "\n" if snippet else "") + "[photo]"
+    # the reporter is shown only what the chat shows them; moderators get everything that's kept
     return _report_page(request, kind=Report.MESSAGE, reported_user=sender, message=msg, conversation=conv,
-                        label=f"Message from {_chat_name(conv, sender, request.user)}", snippet=snippet,
+                        label=f"Message from {_chat_name(conv, sender, request.user)}",
+                        snippet="Message deleted" if msg.is_deleted else _message_text(msg),
+                        snapshot=_message_record(msg),
                         fallback=reverse("chat_room", args=[conv.pk]))
+
+
+def _message_text(msg):
+    text = msg.text or ""
+    if msg.image:
+        text = (text + "\n" if text else "") + "[photo]"
+    return text
+
+
+def _message_record(msg):
+    """The report's copy of a message: what it says now, plus (when it happened) that the sender
+    deleted it and what it said before each edit."""
+    lines = [_message_text(msg)]
+    if msg.is_deleted:
+        lines.append(f"[Deleted by the sender on {timezone.localtime(msg.deleted_at):%b %-d, %H:%M}]")
+    edits = list(msg.edits.all())
+    if edits:
+        lines.append(f"[Edited {len(edits)} time{'s' if len(edits) > 1 else ''}. Earlier versions, oldest first:]")
+        lines += [f"- until {timezone.localtime(e.replaced_at):%b %-d, %H:%M}: {e.text}" for e in edits]
+    return "\n".join(lines)
 
 
 @login_required
@@ -205,7 +225,10 @@ def _content_state(report):
     if report.kind == Report.MESSAGE:
         if not report.message_id:
             return "deleted"
-        return "removed" if report.message.removed else "exists"
+        if report.message.removed:
+            return "removed"
+        # deleted by the sender: the chat says "Message deleted", but it's kept, so it can still be removed
+        return "sender_deleted" if report.message.is_deleted else "exists"
     return "exists"
 
 
@@ -222,7 +245,7 @@ def report_detail(request, pk):
             messages.info(request, "This report was already handled.")
             return redirect("mod_report", pk=pk)
         if action == "remove":
-            if report.kind == Report.PROFILE or _content_state(report) != "exists":
+            if report.kind == Report.PROFILE or _content_state(report) not in ("exists", "sender_deleted"):
                 messages.error(request, "There's no content left to remove.")
                 return redirect("mod_report", pk=pk)
             # close this and every other open report about the same content while it still exists,
@@ -256,7 +279,8 @@ def report_detail(request, pk):
         n = sizes[0]
     context_msgs = []
     if report.conversation_id:
-        context_msgs = list(_window(report).select_related("sender__profile")[:n])[::-1]
+        context_msgs = list(_window(report).select_related("sender__profile", "reply_to")
+                            .prefetch_related("edits")[:n])[::-1]
     return render(request, "moderation/report_detail.html", {
         "report": report, "state": _content_state(report), "sizes": sizes, "n": n, "context_msgs": context_msgs,
         "other_reports": Report.objects.filter(reported_user=report.reported_user).exclude(pk=pk).count()
@@ -310,7 +334,10 @@ def _remove_content(report):
         msg = report.message
         if msg.image:
             msg.image.delete(save=False)
-        Message.objects.filter(pk=msg.pk).update(removed=True, text="", image="")
+        # removal wipes it for good, earlier versions too (the report keeps its own copy)
+        Message.objects.filter(pk=msg.pk).update(removed=True, text="", image="", changed_at=timezone.now())
+        MessageEdit.objects.filter(message=msg).delete()
+        push_conversation(msg.conversation)   # open chats show "removed by a moderator"
         return True
     return False
 

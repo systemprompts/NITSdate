@@ -1,10 +1,12 @@
 import hashlib
 import re
+from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Count, OuterRef, Q, Subquery
 from django.http import Http404, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -17,13 +19,14 @@ from accounts.images import process_image, serve_image
 from accounts.models import Block, ConnectionRequest
 from accounts.privacy import display_name, messages_blocked, name_is_hidden, visible_gender
 
+from live.publish import push_conversation
 from matchmaking.models import MatchSession
 from matchmaking.services import PENDING
 from moderation.permissions import restriction_for
 
 from . import services
 from .presence import presence, receipt, shows_presence
-from .models import Conversation, Message, PriorityRequest
+from .models import Conversation, Message, MessageEdit, PriorityRequest
 
 PAGE = 50  # messages per load in a chat
 TAB_ORDER = [Conversation.PRIORITY, Conversation.INBOX, Conversation.MATCH]
@@ -66,7 +69,9 @@ def inbox(request):
              .select_related("user1__profile", "user2__profile")
              .annotate(last_text=Subquery(last.values("text")[:1]),
                        last_image=Subquery(last.values("image")[:1]),
-                       last_sender=Subquery(last.values("sender_id")[:1]))
+                       last_sender=Subquery(last.values("sender_id")[:1]),
+                       last_deleted=Subquery(last.values("deleted_at")[:1]),
+                       last_removed=Subquery(last.values("removed")[:1]))
              .order_by("-is_active", "-last_message_at", "-id"))   # ended matchmaking chats last
     page = Paginator(convs, 30).get_page(request.GET.get("page"))
     blocked_with = {b if a == me.pk else a for a, b in Block.objects.filter(
@@ -113,8 +118,32 @@ def _panel(request, conv, blocked):
     return html, key
 
 
-def _render_messages(msgs, me, conv):
-    return render_to_string("chat/_messages.html", {"messages_list": msgs, "me": me, "conv": conv})
+def _render_messages(msgs, me, conv, can_write=None):
+    """`msgs` should come with select_related("reply_to") (see _messages). `can_write` (reply and
+    edit are offered) is worked out if not given."""
+    return render_to_string("chat/_messages.html", {
+        "messages_list": msgs, "me": me, "conv": conv, "other_name": _title(conv, me),
+        "can_write": _can_write(conv, me) if can_write is None else can_write})
+
+
+def _messages(conv):
+    return conv.messages.select_related("reply_to")
+
+
+def _can_write(conv, me, blocked=None):
+    """May `me` send (and so reply and edit) in this chat right now? Pass `blocked` if it's known."""
+    if not conv.is_active:
+        return False
+    if messages_blocked(conv.user1_id, conv.user2_id) if blocked is None else blocked:
+        return False
+    return not restriction_for(me).no_messaging
+
+
+CHANGES_OVERLAP = timedelta(seconds=5)   # changes are re-sent this far back, so one committing late isn't missed
+
+
+def _cursor():
+    return round(timezone.now().timestamp(), 3)
 
 
 @login_required
@@ -123,7 +152,7 @@ def room(request, pk):
     conv = _get_conversation(request, pk)
     other = conv.other(me)
     # only the newest PAGE messages; older ones and archives load on demand (see history())
-    current = list(conv.messages.filter(stage=conv.tier).order_by("-id")[:PAGE])[::-1]
+    current = list(_messages(conv).filter(stage=conv.tier).order_by("-id")[:PAGE])[::-1]
     has_earlier = bool(current) and conv.messages.filter(stage=conv.tier, id__lt=current[0].pk).exists()
     stage_counts = dict(conv.messages.filter(stage__in=conv.archived_stages())
                         .values_list("stage").annotate(n=Count("id", filter=Q(sender__isnull=False))))
@@ -155,10 +184,11 @@ def room(request, pk):
         # a match across NITs says where they are; same-NIT matches don't need it
         "other_campus": (other.campus_name if conv.is_match and other and other.campus != me.campus else ""),
         "archived": archived,
-        "messages_html": _render_messages(current, me, conv),
+        "messages_html": _render_messages(current, me, conv, _can_write(conv, me, blocked)),
         "last_id": last_id,
         "first_id": current[0].pk if current else 0,
         "has_earlier": has_earlier,
+        "changes_cursor": _cursor(),
         "panel_html": panel_html,
         "panel_key": panel_key,
         "msg_blocked": blocked,
@@ -180,7 +210,7 @@ def history(request, pk):
     stage = request.GET.get("stage", conv.tier)
     if stage not in dict(Conversation.TIERS):
         return HttpResponseBadRequest()
-    qs = conv.messages.filter(stage=stage).order_by("-id")
+    qs = _messages(conv).filter(stage=stage).order_by("-id")
     try:
         if request.GET.get("before"):
             qs = qs.filter(id__lt=int(request.GET["before"]))
@@ -201,8 +231,10 @@ def poll(request, pk):
         after = int(request.GET.get("after", 0))
     except ValueError:
         after = 0
-    new = list(conv.messages.filter(id__gt=after, stage=conv.tier))
+    new = list(_messages(conv).filter(id__gt=after, stage=conv.tier))
     blocked = messages_blocked(conv.user1_id, conv.user2_id)
+    can_write = _can_write(conv, me, blocked)
+    changed_html, cursor = _changes(request, conv, me, after, can_write)
     panel_html, panel_key = _panel(request, conv, blocked)
     # pages only poll while they're visible, so everything up to what's shown has been seen
     upto = new[-1].pk if new else after
@@ -219,10 +251,28 @@ def poll(request, pk):
         "active": conv.is_active,
         "blocked": blocked,
         "last_id": new[-1].pk if new else after,
-        "html": _render_messages(new, me, conv) if new else "",
+        "html": _render_messages(new, me, conv, can_write) if new else "",
+        "changed": changed_html,
+        "cursor": cursor,
         "panel": panel_html,
         "panel_key": panel_key,
     })
+
+
+def _changes(request, conv, me, after, can_write):
+    """Messages already on the page (id <= after) that were edited, deleted or removed since
+    ?changed=<cursor>, plus replies quoting them (their quote changes too). Returns (html, new cursor)."""
+    cursor = _cursor()
+    try:
+        since = float(request.GET["changed"])
+    except (KeyError, ValueError):
+        return "", cursor
+    since = datetime.fromtimestamp(since, tz=dt_timezone.utc) - CHANGES_OVERLAP
+    ids = list(conv.messages.filter(changed_at__gt=since, id__lte=after).values_list("id", flat=True)[:200])
+    if not ids:
+        return "", cursor
+    msgs = list(_messages(conv).filter(Q(id__in=ids) | Q(reply_to_id__in=ids, id__lte=after)).order_by("id")[:400])
+    return _render_messages(msgs, me, conv, can_write), cursor
 
 
 @login_required
@@ -255,7 +305,11 @@ def send(request, pk):
             image = process_image(upload)
         except ValidationError as exc:
             return fail(exc.messages[0])
-    msg = Message(conversation=conv, sender=me, stage=conv.tier, text=text)
+    reply_to = None
+    if request.POST.get("reply_to", "").isdigit():
+        # any real message in this chat; a deleted one can still be replied to (the quote says so)
+        reply_to = conv.messages.filter(pk=int(request.POST["reply_to"]), sender__isnull=False).first()
+    msg = Message(conversation=conv, sender=me, stage=conv.tier, text=text, reply_to=reply_to)
     if image:
         msg.image.save(image.name, image, save=False)
     msg.save()
@@ -264,6 +318,64 @@ def send(request, pk):
     if _is_fetch(request):
         return JsonResponse({"ok": True})
     return redirect("chat_room", pk=pk)
+
+
+def _own_message(request, msg_id):
+    msg = get_object_or_404(Message.objects.select_related("conversation"), pk=msg_id)
+    if msg.sender_id != request.user.pk:    # system messages have no sender
+        raise Http404
+    return msg
+
+
+def _done(request, conv, error=None):
+    if _is_fetch(request):
+        return JsonResponse({"ok": not error, **({"error": error} if error else {})}, status=400 if error else 200)
+    if error:
+        messages.error(request, error)
+    return redirect("chat_room", pk=conv.pk)
+
+
+@login_required
+@require_POST
+def edit_message(request, msg_id):
+    """Change the text of your message. The earlier text is kept for moderators (MessageEdit);
+    in the chat it only says "Edited"."""
+    msg = _own_message(request, msg_id)
+    conv = msg.conversation
+    if msg.hidden or not msg.text:
+        return _done(request, conv, "This message can't be edited.")
+    if not _can_write(conv, request.user):
+        return _done(request, conv, "You can't send messages in this chat right now.")
+    text = request.POST.get("text", "").strip()
+    if not text:
+        return _done(request, conv, "A message can't be empty. Delete it instead.")
+    if len(text) > 2000:
+        return _done(request, conv, "Messages can be at most 2,000 characters.")
+    if text == msg.text:
+        return _done(request, conv)
+    with transaction.atomic():
+        locked = Message.objects.select_for_update().get(pk=msg.pk)
+        if locked.hidden:
+            return _done(request, conv, "This message can't be edited.")
+        MessageEdit.objects.create(message=locked, text=locked.text)
+        now = timezone.now()
+        Message.objects.filter(pk=msg.pk).update(text=text, edited_at=now, changed_at=now)
+    push_conversation(conv)
+    return _done(request, conv)
+
+
+@login_required
+@require_POST
+def delete_message(request, msg_id):
+    """Delete your message for both of you: it shows as "Message deleted". Its text and photo stay
+    in the database for moderators. Works even after a chat ended or was blocked."""
+    msg = _own_message(request, msg_id)
+    conv = msg.conversation
+    if not msg.hidden:
+        now = timezone.now()
+        if Message.objects.filter(pk=msg.pk, deleted_at__isnull=True).update(deleted_at=now, changed_at=now):
+            push_conversation(conv)
+    return _done(request, conv)
 
 
 @login_required
@@ -336,6 +448,6 @@ def leave(request, pk):
 @login_required
 def photo(request, msg_id):
     msg = get_object_or_404(Message.objects.select_related("conversation"), pk=msg_id)
-    if not msg.conversation.has_member(request.user):
+    if not msg.conversation.has_member(request.user) or msg.hidden:
         raise Http404
     return serve_image(msg.image)

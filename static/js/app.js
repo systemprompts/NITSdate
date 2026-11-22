@@ -426,6 +426,7 @@
       typingTimer = setTimeout(stopTyping, 6000);   // no news for a while: they stopped
     });
     let lastId = parseInt(chat.dataset.lastId, 10) || 0;
+    let cursor = chat.dataset.cursor || "";   // edits and deletes since this server time get fetched
     let busy = false;
 
     const nearBottom = () => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120;
@@ -476,7 +477,8 @@
       if (busy) { again = true; return; }   // a signal came in mid-fetch: fetch once more after
       busy = true;
       try {
-        const res = await fetch(chat.dataset.pollUrl + "?after=" + lastId, { headers: { "X-Requested-With": "fetch" } });
+        const res = await fetch(chat.dataset.pollUrl + "?after=" + lastId + "&changed=" + cursor,
+                                { headers: { "X-Requested-With": "fetch" } });
         if (!res.ok) return;
         const data = await res.json();
         // tier changed (moved to inbox / priority) or chat ended: reload to show archive + new header
@@ -505,6 +507,8 @@
           lastId = Math.max(lastId, data.last_id);
           if (stick) toBottom();
         }
+        if (data.cursor) cursor = data.cursor;
+        applyChanged(data.changed);
         if (data.panel_key !== panel.dataset.key) {
           panel.innerHTML = data.panel;
           panel.dataset.key = data.panel_key;
@@ -516,9 +520,176 @@
         if (again) { again = false; poll(); }
       }
     }
+    // a message on the page was edited, deleted or removed (or one it quotes was): swap in the new copy
+    function applyChanged(html) {
+      if (!html) return;
+      const tmp = document.createElement("div");
+      tmp.innerHTML = html;
+      tmp.querySelectorAll("[data-id]").forEach((node) => {
+        const old = scroller.querySelector('[data-id="' + node.dataset.id + '"]');
+        if (!old || old.outerHTML === node.outerHTML) return;
+        old.replaceWith(node);
+        // what you were replying to or editing was deleted meanwhile
+        if (mode && mode.id === node.dataset.id && !node.hasAttribute(mode.kind === "edit" ? "data-edit" : "data-reply")) clearContext();
+      });
+    }
+
     Live.on("chat", (d) => {
       if (String(d.conv) === chat.dataset.conv && !document.hidden) poll();   // hidden: caught up on return
     });
+
+    /* ---- reply, edit, delete: the ⋯ menu on each message, and swiping to reply (like Messenger:
+       swipe their message to the right, or yours to the left) ---- */
+    const menu = document.getElementById("msg-menu");
+    const ctxBar = document.getElementById("composer-context");
+    const replyInput = document.getElementById("reply-to");
+    const attach = form ? form.querySelector(".attach") : null;
+    let menuFor = null;
+    let mode = null;          // { kind: "reply" | "edit", id }
+    let savedDraft = "";      // what you'd typed before starting an edit
+
+    const closeMenu = () => { menu.hidden = true; menuFor = null; };
+    function openMenu(msg, anchor) {
+      if (menuFor === msg) return closeMenu();
+      menuFor = msg;
+      const show = (act, on) => { menu.querySelector('[data-act="' + act + '"]').hidden = !on; };
+      show("reply", form && msg.hasAttribute("data-reply"));
+      show("edit", form && msg.hasAttribute("data-edit"));
+      show("delete", msg.hasAttribute("data-delete"));
+      show("report", !!msg.dataset.report);
+      if (msg.dataset.report) menu.querySelector('[data-act="report"]').href = msg.dataset.report;
+      if (!menu.querySelector("[data-act]:not([hidden])")) return closeMenu();
+      menu.hidden = false;
+      const r = anchor.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
+      const left = msg.classList.contains("mine") ? r.right - w : r.left;
+      const top = r.bottom + 4 + h > window.innerHeight - 8 ? r.top - h - 4 : r.bottom + 4;
+      menu.style.left = Math.max(8, Math.min(left, window.innerWidth - w - 8)) + "px";
+      menu.style.top = Math.max(8, top) + "px";
+      menu.querySelector("[data-act]:not([hidden])").focus();
+    }
+    document.addEventListener("click", (e) => { if (!menu.hidden && !menu.contains(e.target)) closeMenu(); });
+    scroller.addEventListener("scroll", () => { if (!menu.hidden) closeMenu(); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (!menu.hidden) closeMenu();
+      else if (mode) clearContext();
+    });
+
+    function jumpTo(id) {
+      const target = scroller.querySelector('.msg[data-id="' + id + '"]');
+      if (!target) { alertInline("That message is further up. Load earlier messages to see it."); return; }
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      target.classList.remove("flash");
+      void target.offsetWidth;   // restart the highlight
+      target.classList.add("flash");
+    }
+
+    scroller.addEventListener("click", (e) => {
+      const more = e.target.closest(".msg-more");
+      if (more) { e.stopPropagation(); openMenu(more.closest(".msg"), more); return; }
+      const quote = e.target.closest(".msg-quote");
+      if (quote) jumpTo(quote.dataset.jump);
+    });
+
+    function setContext(kind, msg) {
+      if (!form) return;
+      if (mode && mode.kind === "edit") input.value = savedDraft;   // switching away from an edit
+      mode = { kind, id: msg.dataset.id };
+      const text = msg.querySelector(".bubble p:not(.removed)");
+      const snippet = text ? text.textContent.trim() : (msg.querySelector(".msg-photo") ? "📷 Photo" : "");
+      document.getElementById("context-icon").innerHTML = document.getElementById("tpl-" + kind).innerHTML;
+      document.getElementById("context-title").textContent = kind === "edit" ? "Editing your message"
+        : "Replying to " + (msg.classList.contains("mine") ? "yourself" : chat.dataset.otherName);
+      document.getElementById("context-text").textContent = snippet.length > 90 ? snippet.slice(0, 89) + "…" : snippet;
+      ctxBar.hidden = false;
+      replyInput.value = kind === "reply" ? msg.dataset.id : "";
+      if (attach) attach.hidden = kind === "edit";   // an edit changes the text only
+      if (kind === "edit") {
+        savedDraft = input.value;
+        input.value = msg.dataset.text || "";
+        photo.value = "";
+        chip.hidden = true;
+      }
+      grow();
+      input.focus();
+      if (kind === "edit") input.setSelectionRange(input.value.length, input.value.length);
+    }
+    function clearContext() {
+      if (!mode) return;
+      if (mode.kind === "edit") input.value = savedDraft;
+      mode = null;
+      savedDraft = "";
+      ctxBar.hidden = true;
+      replyInput.value = "";
+      if (attach) attach.hidden = false;
+      grow();
+    }
+    if (form) document.getElementById("context-clear").addEventListener("click", () => { clearContext(); input.focus(); });
+
+    async function deleteMessage(msg) {
+      if (!window.confirm("Delete this message? It will say “Message deleted” for both of you. " +
+                          "Moderators can still read it if this chat is reported.")) return;
+      try {
+        const res = await post(chat.dataset.deleteUrl.replace("/0/", "/" + msg.dataset.id + "/"), new FormData());
+        if (!res.ok) { alertInline("Couldn't delete it. Try again."); return; }
+        if (mode && mode.id === msg.dataset.id) clearContext();
+        await poll();
+      } catch (_) {
+        alertInline("You seem to be offline.");
+      }
+    }
+
+    menu.addEventListener("click", (e) => {
+      const item = e.target.closest("[data-act]");
+      const msg = menuFor;
+      if (!item || !msg || item.dataset.act === "report") return;   // Report is a normal link
+      closeMenu();
+      if (item.dataset.act === "delete") deleteMessage(msg);
+      else setContext(item.dataset.act, msg);
+    });
+
+    // swipe to reply (touch only; a mouse uses the ⋯ menu). .msg has touch-action: pan-y, so up and
+    // down still scroll and sideways moves come here.
+    const SWIPE_AT = 56, SWIPE_MAX = 80;
+    let swipe = null;
+    scroller.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" || !form) return;
+      const msg = e.target.closest(".msg[data-reply]");
+      if (msg) swipe = { msg, x: e.clientX, y: e.clientY, pull: 0, on: false, id: e.pointerId };
+    });
+    scroller.addEventListener("pointermove", (e) => {
+      if (!swipe || e.pointerId !== swipe.id) return;
+      const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+      if (!swipe.on) {
+        if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { swipe = null; return; }   // scrolling
+        if (Math.abs(dx) < 10) return;
+        swipe.on = true;
+        swipe.msg.classList.add("swiping");
+        try { swipe.msg.setPointerCapture(e.pointerId); } catch (_) {}
+      }
+      const dir = swipe.msg.classList.contains("mine") ? -1 : 1;   // yours: to the left; theirs: to the right
+      swipe.pull = Math.max(0, Math.min(SWIPE_MAX, dx * dir));
+      swipe.msg.style.transform = "translateX(" + swipe.pull * dir + "px)";
+      swipe.msg.classList.toggle("swipe-ready", swipe.pull >= SWIPE_AT);
+    });
+    const endSwipe = (e) => {
+      if (!swipe || e.pointerId !== swipe.id) return;
+      const { msg, pull, on } = swipe;
+      swipe = null;
+      msg.classList.remove("swiping", "swipe-ready");
+      msg.style.transform = "";
+      if (!on) return;
+      // the lift after a swipe isn't a tap on a link or photo (if the browser sends a click at all)
+      const swallow = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+      msg.addEventListener("click", swallow, { capture: true, once: true });
+      setTimeout(() => msg.removeEventListener("click", swallow, { capture: true }), 400);
+      if (e.type === "pointerup" && pull >= SWIPE_AT) {
+        if (navigator.vibrate) try { navigator.vibrate(10); } catch (_) {}
+        setContext("reply", msg);
+      }
+    };
+    scroller.addEventListener("pointerup", endSwipe);
+    scroller.addEventListener("pointercancel", endSwipe);
     every(() => { if (!document.hidden) return poll(); }, 3000);
     if (presenceEl && !document.hidden) poll();   // Priority: this marks it read, so "Seen" means seen
     document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
@@ -548,22 +719,30 @@
 
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
-        if (!input.value.trim() && !photo.files.length) return;
+        const editing = mode && mode.kind === "edit" ? mode.id : null;
+        if (!input.value.trim() && (editing || !photo.files.length)) return;
         const btn = form.querySelector(".send-btn");
         btn.disabled = true;
         try {
-          const res = await post(chat.dataset.sendUrl, new FormData(form));
+          let body = new FormData(form), url = chat.dataset.sendUrl;
+          if (editing) {
+            body = new FormData();
+            body.append("text", input.value);
+            url = chat.dataset.editUrl.replace("/0/", "/" + editing + "/");
+          }
+          const res = await post(url, body);
           const data = await res.json().catch(() => ({}));
           if (!res.ok || !data.ok) {
-            alertInline(data.error || "Couldn't send. Try again.");
+            alertInline(data.error || (editing ? "Couldn't save the edit. Try again." : "Couldn't send. Try again."));
             return;
           }
-          input.value = "";
+          if (!editing) input.value = "";
+          clearContext();   // after an edit this brings back what you were typing before
           photo.value = "";
           chip.hidden = true;
           grow();
           await poll();
-          toBottom();
+          if (!editing) toBottom();
         } catch (_) {
           alertInline("You seem to be offline.");
         } finally {

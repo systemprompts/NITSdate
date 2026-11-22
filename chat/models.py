@@ -90,15 +90,44 @@ class Message(models.Model):
     image = models.ImageField(upload_to="chat/%Y/%m/", blank=True)
     removed = models.BooleanField(default=False, help_text="Removed by a moderator")
     created_at = models.DateTimeField(auto_now_add=True)
+    reply_to = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    # The sender can edit and delete their messages. Nothing is erased: a deleted message keeps its text
+    # and photo, and every earlier version of an edited one is kept (MessageEdit), for moderators only.
+    # The two people just see "Message deleted" or "Edited".
+    edited_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    # last edit, delete or moderator removal: open chats fetch messages changed since they last looked
+    changed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["id"]
         indexes = [models.Index(fields=["conversation", "stage", "id"]),
-                   models.Index(fields=["conversation", "sender", "stage"])]  # per-person counts
+                   models.Index(fields=["conversation", "sender", "stage"]),  # per-person counts
+                   models.Index(fields=["conversation", "changed_at"])]
 
     @property
     def is_system(self):
         return self.sender_id is None
+
+    @property
+    def is_deleted(self):
+        return self.deleted_at is not None
+
+    @property
+    def hidden(self):
+        """Its content isn't shown in the chat: deleted by the sender or removed by a moderator."""
+        return self.removed or self.deleted_at is not None
+
+
+class MessageEdit(models.Model):
+    """An earlier version of an edited message: `text` is what it said until `replaced_at`.
+    Only moderators see these (on reports); the chat only says "Edited"."""
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="edits")
+    text = models.TextField(blank=True)
+    replaced_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
 
 
 class PriorityRequest(models.Model):

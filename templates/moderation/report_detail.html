@@ -15,7 +15,7 @@
     <dt>Reported by</dt><dd>{% include "moderation/_person.html" with person=report.reporter %}</dd>
     <dt>When</dt><dd>{{ report.created_at }} ({{ report.created_at|naturaltime }})</dd>
     {% if report.details %}<dt>Reporter's note</dt><dd>{{ report.details|linebreaksbr }}</dd>{% endif %}
-    <dt>Content now</dt><dd>{% if state == "exists" %}Still up{% if report.kind == "post" and report.post_id %}, <a href="{% url 'post_detail' report.post_id %}">open post</a>{% elif report.kind == "comment" and report.comment_id %}, <a href="{% url 'post_detail' report.comment.post_id %}#c{{ report.comment_id }}">open thread</a>{% endif %}{% elif state == "removed" %}Removed by a moderator{% else %}Deleted{% endif %}</dd>
+    <dt>Content now</dt><dd>{% if state == "exists" %}Still up{% if report.kind == "post" and report.post_id %}, <a href="{% url 'post_detail' report.post_id %}">open post</a>{% elif report.kind == "comment" and report.comment_id %}, <a href="{% url 'post_detail' report.comment.post_id %}#c{{ report.comment_id }}">open thread</a>{% endif %}{% elif state == "removed" %}Removed by a moderator{% elif state == "sender_deleted" %}Deleted by the sender (the chat shows "Message deleted"; the text below is kept for moderators){% else %}Deleted{% endif %}</dd>
     {% if report.status != "open" %}<dt>Handled</dt><dd>{{ report.handled_by.email|default:"—" }}, {{ report.handled_at|naturaltime }}{% if report.resolution_note %}<br>{{ report.resolution_note|linebreaksbr }}{% endif %}</dd>{% endif %}
   </dl>
   <h3>What was reported</h3>
@@ -34,7 +34,16 @@
     {% for m in context_msgs %}
       <div class="mod-msg {% if m.pk == report.message_id %}is-reported{% endif %}">
         <span class="who">{% if m.sender %}{{ m.sender.profile.name|default:m.sender.email }}{% else %}system{% endif %}</span>
-        <span class="what">{% if m.removed %}<em class="muted">removed by a moderator</em>{% else %}{{ m.text|linebreaksbr }}{% if m.image %} <a href="{% url 'mod_message_image' m.pk %}" target="_blank">[photo]</a>{% endif %}{% endif %}</span>
+        <span class="what">
+          {% if m.reply_to_id %}<small class="muted mod-reply">↩ replying to: {% if m.reply_to.removed %}(removed){% else %}{{ m.reply_to.text|default:"[photo]"|truncatechars:80 }}{% endif %}</small>{% endif %}
+          {% if m.removed %}<em class="muted">removed by a moderator</em>{% else %}{{ m.text|linebreaksbr }}{% if m.image %} <a href="{% url 'mod_message_image' m.pk %}" target="_blank">[photo]</a>{% endif %}{% endif %}
+          {% if m.is_deleted and not m.removed %}<span class="pill pill-priority">deleted by sender {{ m.deleted_at|date:"M j, H:i" }}</span>{% endif %}
+          {% with edits=m.edits.all %}{% if edits and not m.removed %}
+          <details class="mod-edits"><summary><span class="pill">edited {{ edits|length }} time{{ edits|length|pluralize }}</span> earlier versions</summary>
+            <ol>{% for e in edits %}<li>{{ e.text|linebreaksbr }} <small class="muted">until {{ e.replaced_at|date:"M j, H:i" }}</small></li>{% endfor %}</ol>
+          </details>
+          {% endif %}{% endwith %}
+        </span>
         <time class="muted">{{ m.created_at|date:"M j, H:i" }}</time>
       </div>
     {% empty %}
@@ -52,7 +61,7 @@
       <textarea name="note" rows="2" maxlength="2000"></textarea></label>
     <div class="row-gap">
       {% if report.status == "open" %}
-        {% if state == "exists" and report.kind != "profile" %}<button class="btn btn-gold" name="action" value="remove" data-confirm="Remove this {{ report.get_kind_display|lower }} for everyone?">{% icon 'trash' 15 %} Remove {{ report.get_kind_display|lower }}</button>{% endif %}
+        {% if state == "exists" and report.kind != "profile" or state == "sender_deleted" %}<button class="btn btn-gold" name="action" value="remove" data-confirm="Remove this {{ report.get_kind_display|lower }} for everyone?">{% icon 'trash' 15 %} Remove {{ report.get_kind_display|lower }}</button>{% endif %}
         <button class="btn btn-primary" name="action" value="resolve">{% icon 'check' 15 %} Mark handled</button>
         <button class="btn" name="action" value="dismiss">Dismiss (no problem)</button>
       {% else %}
