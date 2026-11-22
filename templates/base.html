@@ -21,6 +21,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Mukta:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
+  <link rel="manifest" href="{% url 'manifest' %}">
+  <meta name="apple-mobile-web-app-title" content="nitsdate">
+  {% if PUSH_KEY %}<meta name="push-key" content="{{ PUSH_KEY }}" data-user="{{ user.pk }}" data-sw="{% url 'service_worker' %}"
+        data-subscribe="{% url 'push_subscribe' %}" data-unsubscribe="{% url 'push_unsubscribe' %}">{% endif %}
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
 <body class="{% block body_class %}{% endblock %}">
@@ -64,6 +69,34 @@
 </main>
 {% endwith %}
 
+{% if PUSH_KEY %}
+<div class="push-ask" id="push-ask" role="dialog" aria-labelledby="push-ask-title" aria-describedby="push-ask-text" hidden>
+  <span class="push-ask-icon">{% icon 'bell' 22 %}</span>
+  <div class="grow" data-push-step="ask">
+    <b id="push-ask-title">Turn on notifications?</b>
+    <p id="push-ask-text">Never miss a match or a message. We'll tell you when someone writes to you, even when nitsdate is closed.</p>
+    <div class="row-gap">
+      <button type="button" class="btn btn-primary btn-sm" data-push-yes>Turn on</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-push-no>Not now</button>
+    </div>
+  </div>
+  <div class="grow" data-push-step="done" hidden>
+    <b>Notifications are on</b>
+    <p>You'll hear about new messages and matches on this device. Change it any time under Notifications.</p>
+  </div>
+  <div class="grow" data-push-step="failed" hidden>
+    <b>Couldn't turn them on</b>
+    <p>This browser couldn't set up notifications just now. Try again later from the Notifications page.</p>
+    <div class="row-gap"><button type="button" class="btn btn-sm" data-push-close>OK</button></div>
+  </div>
+  <div class="grow" data-push-step="blocked" hidden>
+    <b>Notifications are blocked</b>
+    <p>Your browser said no. To turn them on, allow notifications for nitsdate in the browser's site settings
+      (the icon next to the address).</p>
+    <div class="row-gap"><button type="button" class="btn btn-sm" data-push-close>OK</button></div>
+  </div>
+</div>
+{% endif %}
 <script src="{% static 'js/app.js' %}" defer></script>
 {% block scripts %}{% endblock %}
 </body>

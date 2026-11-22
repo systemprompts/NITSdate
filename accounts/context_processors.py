@@ -37,6 +37,7 @@ def nav(request):
     from moderation.permissions import is_admin, is_mod, request_limit, restriction_for
 
     counts = badge_counts(user)
+    ctx["PUSH_KEY"] = settings.VAPID_PUBLIC_KEY if settings.VAPID_PRIVATE_KEY else ""
     ctx.update({
         "nav_unread": counts["tiers"],
         "nav_unread_total": counts["messages"],

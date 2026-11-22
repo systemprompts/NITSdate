@@ -38,6 +38,21 @@
   </form>
 </section>
 
+{% if PUSH_KEY %}
+<section class="sheet narrow-wide" style="margin-top:1.5rem" data-push-panel>
+  <h2>Push notifications</h2>
+  <div class="stack">
+    <p class="muted" data-push-state>Checking this device…</p>
+    <div class="row-gap">
+      <button type="button" class="btn btn-sm btn-primary" data-push-on hidden>{% icon 'bell' 15 %} Turn on for this device</button>
+      <button type="button" class="btn btn-sm" data-push-off hidden>Turn off for this device</button>
+    </div>
+    <small class="muted">For new messages and matches, even when nitsdate is closed. They show who wrote, never what.
+      On an iPhone, first add nitsdate to your Home Screen (Share → Add to Home Screen) and open it from there.</small>
+  </div>
+</section>
+{% endif %}
+
 <section class="sheet narrow-wide" style="margin-top:1.5rem">
   <h2>Sounds</h2>
   <div class="stack">

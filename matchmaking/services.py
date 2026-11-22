@@ -12,6 +12,7 @@ from accounts.privacy import blocked_ids, connected_ids
 from chat.models import Conversation
 from chat.services import create_match_conversation, member_q
 from live.publish import push_badges, push_match
+from notifications import push
 
 from .models import MatchSession
 
@@ -162,6 +163,8 @@ def try_match(session):
                     status=MatchSession.MATCHED, matched_with=session.user, conversation=conv, ended_at=now)
                 push_match(session.user_id, conv.pk)   # sent once this commits
                 push_match(cand.user_id, conv.pk)
+                push.match_found(session.user_id, conv.pk)   # their phones too, if they turned that on
+                push.match_found(cand.user_id, conv.pk)
         except OperationalError:
             break  # lock contention – the next poll will try again
         session.refresh_from_db()

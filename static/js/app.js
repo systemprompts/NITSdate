@@ -207,6 +207,139 @@
     return { play, unlock, on };
   })();
 
+  /* ---- push notifications (notifications/push.py): new messages and matches, even with the site
+     closed. Asked for only once someone has written to you and you're looking at their message (see
+     the chat room), never on a first visit. ---- */
+  const Push = (() => {
+    const meta = document.querySelector('meta[name="push-key"]');
+    const supported = !!(meta && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window);
+    const SYNC = "push-sync", PROMPT = "push-prompt", OFF = "push-off";
+    const store = {
+      get: (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } },
+      set: (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} },
+      del: (k) => { try { localStorage.removeItem(k); } catch (_) {} },
+    };
+    const today = () => (meta ? meta.dataset.user : "") + ":" + new Date().toDateString();
+    const keyBytes = () => {
+      const s = meta.content, pad = "=".repeat((4 - (s.length % 4)) % 4);
+      const raw = atob((s + pad).replace(/-/g, "+").replace(/_/g, "/"));
+      return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+    };
+    let reg = null;
+    const ready = () => reg || (reg = navigator.serviceWorker.register(meta.dataset.sw).then(() => navigator.serviceWorker.ready));
+    const sameKey = (sub) => {
+      const k = sub.options && sub.options.applicationServerKey;
+      if (!k) return true;
+      const a = new Uint8Array(k), b = keyBytes();
+      return a.length === b.length && a.every((v, i) => v === b[i]);
+    };
+    async function subscribe() {
+      const r = await ready();
+      let sub = await r.pushManager.getSubscription();
+      if (sub && !sameKey(sub)) { await sub.unsubscribe(); sub = null; }   // the server's key changed
+      if (!sub) sub = await r.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes() });
+      const res = await post(meta.dataset.subscribe, JSON.stringify(sub));
+      if (!res.ok) throw new Error("not saved");
+      store.set(SYNC, today());
+    }
+    async function enable() {
+      const answer = await Notification.requestPermission();   // the browser's own question
+      if (answer === "granted") {
+        store.del(OFF);
+        await subscribe();
+      }
+      return answer;
+    }
+    async function disable() {
+      store.set(OFF, "1");
+      store.del(SYNC);
+      const sub = await (await ready()).pushManager.getSubscription();
+      if (sub) {
+        await post(meta.dataset.unsubscribe, JSON.stringify({ endpoint: sub.endpoint })).catch(() => {});
+        await sub.unsubscribe();
+      }
+    }
+    async function isOn() {
+      if (!supported || Notification.permission !== "granted") return false;
+      return !!(await (await ready()).pushManager.getSubscription());
+    }
+    // allowed already: once a day, and after signing in again, tell the server this browser is still
+    // yours (signing out removes it there, and a shared browser follows whoever is signed in)
+    if (supported && Notification.permission === "granted" && !store.get(OFF) && store.get(SYNC) !== today()) {
+      subscribe().catch(() => {});
+    }
+    document.querySelectorAll(".logout-form").forEach((f) => f.addEventListener("submit", () => store.del(SYNC)));
+
+    // the "Turn on notifications?" card
+    const card = document.getElementById("push-ask");
+    const step = (name) => card.querySelectorAll("[data-push-step]").forEach((el) => { el.hidden = el.dataset.pushStep !== name; });
+    const snooze = () => {
+      let s = {};
+      try { s = JSON.parse(store.get(PROMPT) || "{}"); } catch (_) {}
+      store.set(PROMPT, JSON.stringify({ at: Date.now(), n: (s.n || 0) + 1 }));
+    };
+    let asked = false;
+    function ask() {
+      if (!supported || !card || asked || document.hidden || Notification.permission !== "default") return;
+      let s = {};
+      try { s = JSON.parse(store.get(PROMPT) || "{}"); } catch (_) {}
+      if ((s.n || 0) >= 3 || (s.at && Date.now() - s.at < 7 * 864e5)) return;   // "Not now": again in a week, 3 times at most
+      asked = true;
+      step("ask");
+      card.hidden = false;
+    }
+    if (card) {
+      card.querySelector("[data-push-no]").addEventListener("click", () => { snooze(); card.hidden = true; });
+      card.querySelectorAll("[data-push-close]").forEach((b) => b.addEventListener("click", () => { card.hidden = true; }));
+      card.querySelector("[data-push-yes]").addEventListener("click", async () => {
+        let answer;
+        try { answer = await enable(); } catch (_) { answer = "failed"; }
+        if (answer === "granted") { step("done"); setTimeout(() => { card.hidden = true; }, 4000); }
+        else if (answer === "denied" || answer === "failed") step(answer === "denied" ? "blocked" : "failed");
+        else { snooze(); card.hidden = true; }   // closed the browser's question without answering
+      });
+    }
+
+    // Notifications page: on / off for this device
+    const panel = document.querySelector("[data-push-panel]");
+    if (panel) {
+      const state = panel.querySelector("[data-push-state]");
+      const on = panel.querySelector("[data-push-on]"), off = panel.querySelector("[data-push-off]");
+      const show = async (note) => {
+        on.hidden = off.hidden = true;
+        if (!supported) {
+          state.textContent = /iPhone|iPad/.test(navigator.userAgent)
+            ? "Add nitsdate to your Home Screen and open it from there to get notifications on this iPhone."
+            : "This browser can't show push notifications.";
+          return;
+        }
+        if (Notification.permission === "denied") {
+          state.textContent = "Blocked by your browser. Allow notifications for nitsdate in the browser's site settings.";
+          return;
+        }
+        const now = await isOn().catch(() => false);
+        state.textContent = note || (now ? "On for this device." : "Off for this device.");
+        on.hidden = now;
+        off.hidden = !now;
+      };
+      on.addEventListener("click", async () => {
+        on.disabled = true;
+        let note = "";
+        try { await enable(); } catch (_) { note = "Couldn't turn them on in this browser. Try again later."; }
+        on.disabled = false;
+        show(note);
+      });
+      off.addEventListener("click", async () => {
+        off.disabled = true;
+        try { await disable(); } catch (_) {}
+        off.disabled = false;
+        show();
+      });
+      show();
+    }
+    return { ask };
+  })();
+
   /* ---- nav badges: unread messages, connection requests, notifications and (for mods) open
      reports. On the Messages page the list itself reloads when something changed. ---- */
   if (mainnav) {
@@ -467,6 +600,8 @@
     });
     const toBottom = () => { scroller.scrollTop = scroller.scrollHeight; };
     toBottom();
+    // you're looking at something they wrote: a good moment to offer notifications (never before that)
+    if (list.querySelector(".msg.theirs")) setTimeout(Push.ask, 1500);
     list.querySelectorAll("img").forEach((img) => img.addEventListener("load", toBottom, { once: true }));
 
     const grow = () => { if (!input) return; input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 140) + "px"; };
@@ -497,6 +632,7 @@
           if (tmp.querySelector(".msg.theirs")) {   // their message arrived
             stopTyping();
             Sound.play("message");
+            setTimeout(Push.ask, 1200);
           }
           tmp.querySelectorAll("[data-id]").forEach((node) => {
             if (!list.querySelector('[data-id="' + node.dataset.id + '"]')) {

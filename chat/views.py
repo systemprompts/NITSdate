@@ -23,6 +23,7 @@ from live.publish import push_conversation
 from matchmaking.models import MatchSession
 from matchmaking.services import PENDING
 from moderation.permissions import restriction_for
+from notifications import push
 
 from . import services
 from .presence import presence, receipt, shows_presence
@@ -313,6 +314,7 @@ def send(request, pk):
     if image:
         msg.image.save(image.name, image, save=False)
     msg.save()
+    push.message_sent(msg)   # their phone, if they turned notifications on (after this commits)
     Conversation.objects.filter(pk=conv.pk).update(last_message_at=msg.created_at)
     conv.mark_read(me, msg.pk, tell_other=False)   # the new message itself already reaches them
     if _is_fetch(request):

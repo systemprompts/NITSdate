@@ -11,7 +11,8 @@ from .adapters import NOT_ALLOWED, email_allowed, may_sign_in
 from .models import User
 
 EXEMPT_PREFIXES = ("/onboarding/", "/logout/", "/login/", "/dev-login/", "/accounts/", "/static/",
-                   "/privacy/", "/terms/", "/healthz", "/robots.txt", "/favicon.ico", "/" + settings.ADMIN_URL)
+                   "/privacy/", "/terms/", "/healthz", "/robots.txt", "/favicon.ico", "/sw.js", "/manifest.webmanifest",
+                   "/" + settings.ADMIN_URL)
 
 
 class OnboardingMiddleware:

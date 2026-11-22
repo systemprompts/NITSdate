@@ -17,7 +17,7 @@ from chat.services import system_message
 from feed.models import Comment, Post
 from live.publish import close_user
 from matchmaking.models import MatchSession
-from notifications.models import Notification
+from notifications.models import Notification, PushSubscription
 
 from .models import AllowedEmail, FormerAccount, ModeratorGrant, Restriction
 
@@ -104,6 +104,7 @@ def delete_account(user, *, remove_content=False):
         MatchSession.objects.filter(user=user).delete()
         Restriction.objects.filter(user=user).delete()
         Notification.objects.filter(Q(recipient=user) | Q(actor=user)).delete()
+        PushSubscription.objects.filter(user=user).delete()    # its phones stop getting notifications
         if user.email:   # a deleted account mustn't keep moderator or allowlist access for its address
             ModeratorGrant.objects.filter(email__iexact=user.email).delete()
             AllowedEmail.objects.filter(email__iexact=user.email).delete()

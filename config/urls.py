@@ -6,6 +6,8 @@ from django.urls import include, path, re_path
 from django.views.decorators.cache import never_cache
 from django.views.generic import RedirectView, TemplateView
 
+from notifications import views as notification_views
+
 
 def robots_txt(request):
     # a private campus community: keep every page out of search engines
@@ -24,6 +26,8 @@ def not_found(request, *args, **kwargs):
 
 urlpatterns = [
     path("robots.txt", robots_txt),
+    path("sw.js", notification_views.service_worker, name="service_worker"),
+    path("manifest.webmanifest", notification_views.manifest, name="manifest"),
     path("favicon.ico", RedirectView.as_view(url=settings.STATIC_URL + "img/favicon.svg", permanent=True)),
     path("healthz", healthz),
     path("privacy/", TemplateView.as_view(template_name="legal/privacy.html",

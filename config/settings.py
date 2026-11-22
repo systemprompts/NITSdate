@@ -228,6 +228,12 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
+# Push notifications (Web Push) for new messages and matches; off while either key is empty.
+# Make a pair with: python -c "from notifications.vapid import new_keys; print(new_keys())"
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "").strip()
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
+VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "https://nitsdate.site").strip()   # how push services reach us
+
 # shown on /privacy/ and /terms/ for account-deletion requests (leave empty to hide)
 CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "").strip()
 
