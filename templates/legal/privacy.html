@@ -14,7 +14,10 @@
       chat photos, connections, blocks and reports.</li>
     <li><b>Technical:</b> a sign-in cookie and a security (CSRF) cookie. Your light/dark choice and whether sounds are on stay in your own
       browser. The time you were last on the site: matchmaking uses it to pair people who are around first,
-      moderators can see it, and your Priority chats see it as "Active now" or "Active 5 minutes ago". Nobody else does. The server's access logs record IP addresses and the pages requested; they are deleted
+      moderators can see it, and the people you chat with see a rounded version of it: to the minute in Priority
+      chats ("Active now", "Active 5 minutes ago"), to the hour in Inbox chats ("Active 3 hours ago") and to the day
+      in Matchmaking chats ("Active yesterday"). It's hidden in ended chats and when either of you has blocked
+      messages. Nobody else sees it. The server's access logs record IP addresses and the pages requested; they are deleted
       after 14 days.</li>
   </ul>
   <p>No ads, no analytics or tracking scripts, and nothing is sold or shared with advertisers.
@@ -35,8 +38,9 @@
       messages and matches: who wrote (a blind nickname in matchmaking chats), never what they wrote. They travel
       through your browser's push service (Google, Apple, Mozilla or Microsoft), encrypted so that service can't read
       them. Signing out or turning them off on the Notifications page stops them on that device.</li>
-    <li>In a <b>Priority</b> chat you both see when the other was last active, when they're typing, and whether they've
-      seen your latest message. Other chats show none of this, and blocking messages hides it.</li>
+    <li>In a <b>Priority</b> chat you both see when the other was last active to the minute, when they're typing, and
+      whether they've seen your latest message. Inbox chats show last active to the hour and Matchmaking chats to the
+      day, with no typing or seen. Blocking messages hides all of it.</li>
     <li>In matchmaking you both get blind nicknames until you connect. You're matched within your own NIT{% if ALL_NITS_LIVE %} unless
       you both choose All NITs{% else %}; matching across NITs is coming{% endif %}.</li>
     <li>Notifications tell you when someone upvotes, comments on or replies to what you posted. Upvote

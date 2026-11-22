@@ -26,7 +26,7 @@ from moderation.permissions import restriction_for
 from notifications import push
 
 from . import services
-from .presence import presence, receipt, shows_presence
+from .presence import presence, receipt, shows_presence, shows_receipts
 from .models import Conversation, Message, MessageEdit, PriorityRequest
 
 PAGE = 50  # messages per load in a chat
@@ -84,8 +84,8 @@ def inbox(request):
         conv.gender = None if conv.is_match else visible_gender(conv.other_user, me)  # blind chats stay blind
         conv.unread = unread.get(conv.pk, (None, 0))[1]
         conv.msg_blocked = conv.other_id(me) in blocked_with
-        if conv.tier == Conversation.PRIORITY and conv.is_active and not conv.msg_blocked:
-            conv.presence = presence(conv.other_user)
+        if conv.is_active and not conv.msg_blocked:   # to the minute, hour or day, by tier
+            conv.presence = presence(conv.other_user, conv.tier)
     tabs = [{"key": t, "label": TAB_LABELS[t], "unread": tab_unread[t], "count": tab_count.get(t, 0)} for t in TAB_ORDER]
     return render(request, "chat/inbox.html", {"tab": tab, "tabs": tabs, "conversations": page, "page": page,
                                                "inbox_version": services.inbox_version(me, sum(tab_unread.values()))})
@@ -164,9 +164,10 @@ def room(request, pk):
     panel_html, panel_key = _panel(request, conv, blocked)
     last_id = conv.messages.order_by("-id").values_list("id", flat=True).first() or 0
     live_presence = shows_presence(conv, blocked)
+    receipts = shows_receipts(conv, blocked)
     # In a Priority chat reading is shown as "Seen", so the page marks it read itself once it's
     # visible (its first poll); a chat opened in a background tab mustn't say "Seen" yet.
-    if last_id and not live_presence:
+    if last_id and not receipts:
         conv.mark_read(me, last_id)
     # arrived straight from the "matching" screen (the live update sends the page here): the
     # search is settled, so /match/ mustn't bounce back into this chat later
@@ -194,9 +195,11 @@ def room(request, pk):
         "panel_key": panel_key,
         "msg_blocked": blocked,
         "no_messaging": restriction_for(me).no_messaging,
-        # Priority chats: "Active now / Active 5 minutes ago", "typing…" and "Seen"
-        "presence": presence(other) if live_presence else None,
-        "receipt": receipt(conv, me) if live_presence else "",
+        # "Active …" to the minute (Priority), hour (Inbox) or day (Matchmaking);
+        # Priority chats also get "typing…" and "Seen"
+        "presence": presence(other, conv.tier) if live_presence else None,
+        "receipts": receipts,
+        "receipt": receipt(conv, me) if receipts else "",
         "my_block": Block.objects.filter(blocker=me, blocked=other).first(),
         "tier_label": TAB_LABELS[conv.tier],
     })
@@ -245,7 +248,9 @@ def poll(request, pk):
         conv.mark_read(me, upto)
     extra = {}
     if shows_presence(conv, blocked):
-        extra = {"presence": presence(conv.other(me)), "receipt": receipt(conv, me)}
+        extra["presence"] = presence(conv.other(me), conv.tier)
+        if conv.tier == Conversation.PRIORITY:
+            extra["receipt"] = receipt(conv, me)
     return JsonResponse({
         **extra,
         "tier": conv.tier,

@@ -1,4 +1,5 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from django.test import TestCase
 from django.urls import reverse
@@ -11,7 +12,8 @@ from chat.presence import presence
 
 
 class PriorityPresenceTests(TestCase):
-    """Priority chats show "Active now / Active x ago" and "Sent / Seen"; other chats don't."""
+    """Last active: to the minute in Priority chats (which also get "Sent / Seen"), the hour in
+    Inbox chats and the day in Matchmaking chats."""
 
     def setUp(self):
         self.a = make_user("Asha Rao", gender="female", likes="male")
@@ -26,35 +28,104 @@ class PriorityPresenceTests(TestCase):
     def test_presence_text(self):
         now = timezone.now()
         self.b.last_seen = None
-        self.assertEqual(presence(self.b, now), {"now": False, "text": ""})
+        self.assertEqual(presence(self.b, "priority", now), {"now": False, "text": ""})
         self.b.last_seen = now - timedelta(seconds=70)
-        self.assertEqual(presence(self.b, now), {"now": True, "text": "Active now"})
+        self.assertEqual(presence(self.b, "priority", now), {"now": True, "text": "Active now"})
         self.b.last_seen = now - timedelta(minutes=5, seconds=10)
-        self.assertEqual(presence(self.b, now)["text"], "Active 5\xa0minutes ago")
+        self.assertEqual(presence(self.b, "priority", now)["text"], "Active 5\xa0minutes ago")
         self.b.last_seen = now - timedelta(days=2, hours=3)
-        self.assertEqual(presence(self.b, now)["text"], "Active 2\xa0days ago")
+        self.assertEqual(presence(self.b, "priority", now)["text"], "Active 2\xa0days ago")
+
+    def text(self, tier, now, ago=None, at=None):
+        self.b.last_seen = at if at is not None else now - ago
+        p = presence(self.b, tier, now)
+        self.assertFalse(p["now"])          # the green "online" dot is Priority only
+        return p["text"]
+
+    def test_inbox_is_to_the_hour(self):
+        now = timezone.now()
+        self.b.last_seen = None
+        self.assertEqual(presence(self.b, "inbox", now)["text"], "")
+        for ago, expected in [
+            (timedelta(seconds=20), "Active in the last hour"),
+            (timedelta(minutes=59, seconds=59), "Active in the last hour"),
+            (timedelta(hours=1), "Active 1 hour ago"),
+            (timedelta(hours=5, minutes=50), "Active 5 hours ago"),
+            (timedelta(hours=23, minutes=59), "Active 23 hours ago"),
+            (timedelta(hours=24), "Active 1 day ago"),
+            (timedelta(days=3, hours=20), "Active 3 days ago"),
+            (timedelta(days=30, hours=23), "Active 30 days ago"),
+            (timedelta(days=31), "Active over a month ago"),
+        ]:
+            self.assertEqual(self.text("inbox", now, ago), expected, ago)
+
+    def test_matchmaking_is_to_the_day_in_indian_time(self):
+        ist = ZoneInfo("Asia/Kolkata")
+        now = datetime(2026, 11, 22, 0, 30, tzinfo=ist)     # just after midnight
+        self.b.last_seen = None
+        self.assertEqual(presence(self.b, "match", now)["text"], "")
+        for at, expected in [
+            (datetime(2026, 11, 22, 0, 29, tzinfo=ist), "Active today"),
+            (datetime(2026, 11, 21, 23, 59, tzinfo=ist), "Active yesterday"),   # a minute ago, but yesterday
+            (datetime(2026, 11, 21, 0, 0, tzinfo=ist), "Active yesterday"),
+            (datetime(2026, 11, 20, 23, 0, tzinfo=ist), "Active 2 days ago"),
+            (datetime(2026, 10, 23, 12, 0, tzinfo=ist), "Active 30 days ago"),
+            (datetime(2026, 10, 22, 12, 0, tzinfo=ist), "Active over a month ago"),
+        ]:
+            self.assertEqual(self.text("match", now, at=at), expected, at)
+        # stored in UTC: 20:00 UTC on the 21st is 01:30 on the 22nd in India
+        self.assertEqual(self.text("match", datetime(2026, 11, 22, 9, 0, tzinfo=ist),
+                                   at=datetime(2026, 11, 21, 20, 0, tzinfo=ZoneInfo("UTC"))), "Active today")
 
     def test_priority_chat_shows_presence_and_the_list_too(self):
         self.seen(self.b, timedelta(seconds=30))
         room = self.client.get(reverse("chat_room", args=[self.conv.pk]))
         self.assertContains(room, 'id="presence"')
         self.assertContains(room, "Active now")
+        self.assertContains(room, 'data-receipts="1"')
+        self.assertContains(room, 'id="receipt"')
         inbox = self.client.get(reverse("inbox") + "?tab=priority")
         self.assertContains(inbox, "Active now")
 
-    def test_other_chats_show_nothing(self):
-        self.seen(self.b, timedelta(seconds=30))
+    def test_inbox_chats_show_the_hour_without_typing_or_seen(self):
+        self.seen(self.b, timedelta(hours=2, minutes=10))
         Conversation.objects.filter(pk=self.conv.pk).update(tier=Conversation.INBOX)
         room = self.client.get(reverse("chat_room", args=[self.conv.pk]))
-        self.assertNotContains(room, 'id="presence"')
+        self.assertContains(room, "Active 2 hours ago")
         self.assertNotContains(room, "Active now")
+        self.assertContains(room, 'data-receipts="0"')
+        self.assertNotContains(room, 'id="receipt"')
+        self.assertContains(self.client.get(reverse("inbox") + "?tab=inbox"), "Active 2 hours ago")
+        self.seen(self.b, timedelta(seconds=30))
+        data = self.client.get(reverse("chat_poll", args=[self.conv.pk])).json()
+        self.assertEqual(data["presence"], {"now": False, "text": "Active in the last hour"})
+        self.assertNotIn("receipt", data)
+
+    def test_matchmaking_chats_show_the_day(self):
+        self.seen(self.b, timedelta(seconds=30))
+        Conversation.objects.filter(pk=self.conv.pk).update(tier=Conversation.MATCH)
+        room = self.client.get(reverse("chat_room", args=[self.conv.pk]))
+        self.assertContains(room, "Active today")
+        self.assertNotContains(room, "Active now")
+        self.assertNotContains(room, 'id="receipt"')
+        self.assertContains(self.client.get(reverse("inbox") + "?tab=match"), "Active today")
+        self.assertEqual(self.client.get(reverse("chat_poll", args=[self.conv.pk])).json()["presence"]["text"],
+                         "Active today")
+        # once someone leaves the chat, it's gone
+        Conversation.objects.filter(pk=self.conv.pk).update(is_active=False)
+        self.assertNotContains(self.client.get(reverse("chat_room", args=[self.conv.pk])), 'id="presence"')
+        self.assertNotContains(self.client.get(reverse("inbox") + "?tab=match"), "Active today")
         self.assertNotIn("presence", self.client.get(reverse("chat_poll", args=[self.conv.pk])).json())
 
     def test_a_message_block_hides_it(self):
         self.seen(self.b, timedelta(seconds=30))
         Block.objects.create(blocker=self.b, blocked=self.a, messages=True)
-        room = self.client.get(reverse("chat_room", args=[self.conv.pk]))
-        self.assertNotContains(room, "Active now")
+        for tier in (Conversation.PRIORITY, Conversation.INBOX, Conversation.MATCH):
+            Conversation.objects.filter(pk=self.conv.pk).update(tier=tier)
+            room = self.client.get(reverse("chat_room", args=[self.conv.pk]))
+            self.assertNotContains(room, 'id="presence"')
+            self.assertNotContains(room, "Active ")
+            self.assertNotContains(self.client.get(reverse("inbox") + f"?tab={tier}"), "Active ")
 
     def test_sent_then_seen(self):
         send = reverse("chat_send", args=[self.conv.pk])

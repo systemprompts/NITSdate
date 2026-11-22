@@ -574,7 +574,9 @@
       }
       return files.find((f) => /^image\//.test(f.type)) || null;
     };
-    // Priority chats only: "Active now / Active 5 minutes ago", "typing…" and "Seen"
+    // "Active …" (to the minute in Priority chats, the hour in Inbox, the day in Matchmaking);
+    // Priority chats only (data-receipts): "typing…" and "Seen"
+    const receipts = chat.dataset.receipts === "1";
     const presenceEl = document.getElementById("presence");
     const presenceLive = document.getElementById("presence-live");
     const receiptEl = document.getElementById("receipt");
@@ -588,7 +590,7 @@
     };
     const showPresence = (p) => {
       if (!presenceEl || !p) return;
-      presenceEl.dataset.text = p.text || "View profile";
+      presenceEl.dataset.text = p.text || presenceEl.dataset.empty || "";
       if (presenceEl.classList.contains("online") !== !!p.now) announce(p.now ? "Active now" : "Offline");
       presenceEl.classList.toggle("online", !!p.now);
       if (!presenceEl.classList.contains("typing")) presenceEl.textContent = presenceEl.dataset.text;
@@ -599,7 +601,7 @@
       receiptEl.hidden = !text;
     };
     Live.on("typing", (d) => {
-      if (!presenceEl || String(d.conv) !== chat.dataset.conv) return;
+      if (!receipts || !presenceEl || String(d.conv) !== chat.dataset.conv) return;
       if (!presenceEl.classList.contains("typing")) announce("typing");
       presenceEl.classList.add("typing");
       presenceEl.textContent = "typing…";
@@ -875,14 +877,14 @@
     scroller.addEventListener("pointerup", endSwipe);
     scroller.addEventListener("pointercancel", endSwipe);
     every(() => { if (!document.hidden) return poll(); }, 3000);
-    if (presenceEl && !document.hidden) poll();   // Priority: this marks it read, so "Seen" means seen
+    if (receipts && !document.hidden) poll();   // Priority: this marks it read, so "Seen" means seen
     document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 
     if (form) {
       try { const d = sessionStorage.getItem(draftKey); if (d) { input.value = d; sessionStorage.removeItem(draftKey); grow(); } } catch (_) {}
       input.addEventListener("input", grow);
       let typedAt = 0;
-      if (presenceEl) input.addEventListener("input", () => {
+      if (receipts) input.addEventListener("input", () => {
         const now = Date.now();
         if (input.value.trim() && now - typedAt > 2500) {
           typedAt = now;

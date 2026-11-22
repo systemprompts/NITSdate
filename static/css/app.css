@@ -802,7 +802,8 @@ label.btn { cursor: pointer; }
 .campus-list ul { columns: 2; column-gap: 1.2rem; margin: .5rem 0 0; padding-left: 1.1rem; }
 @media (max-width: 420px) { .campus-list ul { columns: 1; } }
 
-/* ---- Priority chats: active now / last active, typing…, seen ---- */
+/* ---- last active (every active chat), typing… and seen (Priority chats) ---- */
+.presence:empty + .presence-sep { display: none; }
 .presence.online::before {
   content: ""; display: inline-block; width: 8px; height: 8px; margin-right: .35rem; vertical-align: .05em;
   border-radius: 50%; background: #2fb36b; box-shadow: 0 0 0 2px color-mix(in srgb, #2fb36b 25%, transparent);

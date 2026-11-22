@@ -7,22 +7,23 @@
      data-poll-url="{% url 'chat_poll' conv.pk %}" data-send-url="{% url 'chat_send' conv.pk %}"
      data-last-id="{{ last_id }}" data-tier="{{ conv.tier }}" data-active="{{ conv.is_active|yesno:'1,0' }}"
      data-blocked="{{ msg_blocked|yesno:'1,0' }}" data-cursor="{{ changes_cursor }}" data-other-name="{{ title }}"
-     data-edit-url="{% url 'chat_msg_edit' 0 %}" data-delete-url="{% url 'chat_msg_delete' 0 %}">
+     data-edit-url="{% url 'chat_msg_edit' 0 %}" data-delete-url="{% url 'chat_msg_delete' 0 %}"
+     data-receipts="{{ receipts|yesno:'1,0' }}">
   <header class="chat-head">
     <a href="{% url 'inbox' %}?tab={{ conv.tier }}" class="icon-btn" aria-label="Back">{% icon 'back' %}</a>
     {% if conv.is_match %}
       {% avatar other user "md" blind_name %}
       <div class="grow">
         <b class="blind">{{ title }}</b>
-        <small class="muted">{% if other_campus %}At {{ other_campus }} · {% endif %}You appear as {{ my_blind_name }}</small>
+        <small class="muted">{% if presence %}<span class="presence" id="presence" data-text="{{ presence.text }}" data-empty="">{{ presence.text }}</span><span class="presence-sep"> · </span>{% endif %}{% if other_campus %}At {{ other_campus }} · {% endif %}You appear as {{ my_blind_name }}</small>
       </div>
     {% else %}
       <a href="{% url 'profile' other.pk %}">{% avatar other user "md" %}</a>
       <div class="grow">
         <a href="{% url 'profile' other.pk %}"><b>{{ title }}{% if gender %}&nbsp;{% gender_mark gender %}{% endif %} {% hidden_mark name_hidden %}</b></a>
         {% if presence %}
-          <small class="muted presence {% if presence.now %}online{% endif %}" id="presence" data-text="{{ presence.text|default:'View profile' }}">{{ presence.text|default:"View profile" }}</small>
-          <span class="sr-only" id="presence-live" aria-live="polite"></span>
+          <small class="muted presence {% if presence.now %}online{% endif %}" id="presence" data-text="{{ presence.text|default:'View profile' }}" data-empty="View profile">{{ presence.text|default:"View profile" }}</small>
+          {% if receipts %}<span class="sr-only" id="presence-live" aria-live="polite"></span>{% endif %}
         {% else %}
           <small class="muted">View profile</small>
         {% endif %}
@@ -48,7 +49,7 @@
     <button type="button" class="btn btn-sm btn-ghost load-earlier" id="load-earlier"
             data-url="{% url 'chat_history' conv.pk %}?stage={{ conv.tier }}" data-before="{{ first_id }}" {% if not has_earlier %}hidden{% endif %}>Load earlier messages</button>
     <div class="messages" id="messages">{{ messages_html }}</div>
-    {% if presence %}<div class="msg-receipt" id="receipt" {% if not receipt %}hidden{% endif %}>{{ receipt }}</div>{% endif %}
+    {% if receipts %}<div class="msg-receipt" id="receipt" {% if not receipt %}hidden{% endif %}>{{ receipt }}</div>{% endif %}
   </div>
 
   <div class="chat-panel" id="chat-panel" data-key="{{ panel_key }}">{{ panel_html }}</div>
