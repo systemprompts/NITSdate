@@ -486,6 +486,15 @@ class AccountToolsTests(TestCase):
         self.assertNotIn("Online now", profile)
         self.assertNotIn("hours ago", profile)
 
+    def test_user_list_shows_each_gender_even_when_hidden(self):
+        from accounts.templatetags.nits import gender_mark
+        from accounts.profile_fields import ONLY_ME
+        self.alice.profile.set_privacy("gender", ONLY_ME)     # hidden from students, not from moderators
+        self.alice.profile.save()
+        listing = self.client.get(reverse("mod_users")).content.decode()
+        self.assertIn(f"Alice Real&nbsp;{gender_mark('female')}", listing)
+        self.assertIn(f"Bob Gone&nbsp;{gender_mark('male')}", listing)
+
     def test_mods_see_who_deleted_an_account(self):
         self.client.post(reverse("mod_delete_user", args=[self.bob.pk]))          # a moderator deletes bob
         alice_client = Client()
